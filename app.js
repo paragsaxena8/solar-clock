@@ -32,6 +32,7 @@ let currentSunrise = null;
 let currentSunset = null;
 let tickInterval = null;
 let searchTimer = null;
+let focusedIndex = -1;
 
 const cache = {
   geocode: new Map(),
@@ -138,6 +139,7 @@ toggleMapBtn.addEventListener("click", () => {
   if (isHidden) {
     mapSection.classList.remove("hidden");
     toggleMapLabel.textContent = "Hide Map";
+    toggleMapBtn.setAttribute("aria-expanded", "true");
     setTimeout(() => {
       initMap();
       map.invalidateSize();
@@ -149,6 +151,7 @@ toggleMapBtn.addEventListener("click", () => {
   } else {
     mapSection.classList.add("hidden");
     toggleMapLabel.textContent = "Show Map";
+    toggleMapBtn.setAttribute("aria-expanded", "false");
   }
 });
 
@@ -192,8 +195,44 @@ searchInput.addEventListener("input", (e) => {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".search-wrapper")) {
     suggestionsBox.classList.remove("active");
+    searchInput.setAttribute("aria-expanded", "false");
   }
 });
+
+searchInput.addEventListener("keydown", (e) => {
+  const items = suggestionsBox.querySelectorAll(".suggestion-item[data-lat]");
+  if (!items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
+    updateFocusedItem(items);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    focusedIndex = Math.max(focusedIndex - 1, 0);
+    updateFocusedItem(items);
+  } else if (e.key === "Enter" && focusedIndex >= 0) {
+    e.preventDefault();
+    items[focusedIndex].click();
+  } else if (e.key === "Escape") {
+    suggestionsBox.classList.remove("active");
+    searchInput.setAttribute("aria-expanded", "false");
+    focusedIndex = -1;
+  }
+});
+
+function updateFocusedItem(items) {
+  items.forEach((item, i) => {
+    item.classList.toggle("suggestion-focused", i === focusedIndex);
+    item.setAttribute("aria-selected", i === focusedIndex ? "true" : "false");
+  });
+  if (focusedIndex >= 0 && items[focusedIndex]) {
+    searchInput.setAttribute("aria-activedescendant", items[focusedIndex].id || "");
+    items[focusedIndex].scrollIntoView({ block: "nearest" });
+  } else {
+    searchInput.setAttribute("aria-activedescendant", "");
+  }
+}
 
 function renderSuggestions(results) {
   suggestionsBox.textContent = "";
@@ -208,9 +247,11 @@ function renderSuggestions(results) {
     suggestionsBox.classList.add("active");
     return;
   }
-  results.forEach((r) => {
+  results.forEach((r, suggestionIndex) => {
     const item = document.createElement("div");
     item.className = "suggestion-item";
+    item.id = `suggestion-${suggestionIndex}`;
+    item.setAttribute("role", "option");
     item.dataset.lat = r.latitude;
     item.dataset.lon = r.longitude;
     item.dataset.tz = r.timezone || "";
@@ -244,12 +285,14 @@ function renderSuggestions(results) {
       const itemName = item.dataset.name;
       searchInput.value = itemName;
       suggestionsBox.classList.remove("active");
+      searchInput.setAttribute("aria-expanded", "false");
       startWithLocation(lat, lon, itemName, tz, null, null, true);
     });
 
     suggestionsBox.appendChild(item);
   });
   suggestionsBox.classList.add("active");
+  searchInput.setAttribute("aria-expanded", "true");
 }
 
 async function fetchSuggestions(q) {

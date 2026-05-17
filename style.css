@@ -187,6 +187,15 @@ body {
   padding-left: 22px;
 }
 
+.suggestion-item.suggestion-focused {
+  background: #1f2347;
+  padding-left: 22px;
+}
+
+.suggestion-item.suggestion-focused .suggestion-name {
+  color: #ffd54a;
+}
+
 .suggestion-flag {
   font-size: 1.3rem;
 }
