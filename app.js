@@ -174,37 +174,62 @@ async function fetchSuggestions(q) {
     );
     const data = await res.json();
     if (!data.results || data.results.length === 0) {
-      suggestionsBox.innerHTML = '<div class="suggestion-item"><span class="suggestion-text">No results found</span></div>';
+      suggestionsBox.textContent = "";
+      const emptyItem = document.createElement("div");
+      emptyItem.className = "suggestion-item";
+      const emptyText = document.createElement("span");
+      emptyText.className = "suggestion-text";
+      emptyText.textContent = "No results found";
+      emptyItem.appendChild(emptyText);
+      suggestionsBox.appendChild(emptyItem);
       suggestionsBox.classList.add("active");
       return;
     }
-    suggestionsBox.innerHTML = data.results
-      .map(
-        (r) => `
-        <div class="suggestion-item" data-lat="${r.latitude}" data-lon="${r.longitude}" data-tz="${r.timezone || ""}" data-name="${r.name}${r.admin1 ? ", " + r.admin1 : ""}, ${r.country}">
-          <span class="suggestion-flag">${countryCodeToFlag(r.country_code)}</span>
-          <div class="suggestion-text">
-            <div class="suggestion-name">${r.name}</div>
-            <div class="suggestion-meta">${r.admin1 ? r.admin1 + ", " : ""}${r.country}</div>
-          </div>
-        </div>`
-      )
-      .join("");
-    suggestionsBox.classList.add("active");
+    suggestionsBox.textContent = "";
+    data.results.forEach((r) => {
+      const item = document.createElement("div");
+      item.className = "suggestion-item";
+      item.dataset.lat = r.latitude;
+      item.dataset.lon = r.longitude;
+      item.dataset.tz = r.timezone || "";
 
-    suggestionsBox.querySelectorAll(".suggestion-item").forEach((item) => {
+      const flag = document.createElement("span");
+      flag.className = "suggestion-flag";
+      flag.textContent = countryCodeToFlag(r.country_code);
+
+      const textWrap = document.createElement("div");
+      textWrap.className = "suggestion-text";
+
+      const name = document.createElement("div");
+      name.className = "suggestion-name";
+      name.textContent = r.name;
+
+      const meta = document.createElement("div");
+      meta.className = "suggestion-meta";
+      const region = r.admin1 ? r.admin1 + ", " : "";
+      meta.textContent = region + r.country;
+
+      textWrap.appendChild(name);
+      textWrap.appendChild(meta);
+      item.appendChild(flag);
+      item.appendChild(textWrap);
+
+      item.dataset.name = r.name + (r.admin1 ? ", " + r.admin1 : "") + ", " + r.country;
       item.addEventListener("click", () => {
         const lat = parseFloat(item.dataset.lat);
         const lon = parseFloat(item.dataset.lon);
         const tz = item.dataset.tz;
-        const name = item.dataset.name;
-        searchInput.value = name;
+        const itemName = item.dataset.name;
+        searchInput.value = itemName;
         suggestionsBox.classList.remove("active");
-        startWithLocation(lat, lon, name, tz, true);
+        startWithLocation(lat, lon, itemName, tz, true);
       });
+
+      suggestionsBox.appendChild(item);
     });
+    suggestionsBox.classList.add("active");
   } catch (err) {
-    console.error(err);
+    console.warn("Search failed:", err);
     showStatus("Search failed. Check your connection.");
   }
 }
