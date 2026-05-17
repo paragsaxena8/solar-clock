@@ -236,11 +236,21 @@ async function fetchSuggestions(q) {
   }
 }
 
+function setButtonLoading(btn, isLoading) {
+  btn.disabled = isLoading;
+  if (isLoading) {
+    btn.classList.add("btn-loading");
+  } else {
+    btn.classList.remove("btn-loading");
+  }
+}
+
 locateBtn.addEventListener("click", () => {
   if (!navigator.geolocation) {
     showStatus("Geolocation not supported.");
     return;
   }
+  setButtonLoading(locateBtn, true);
   showStatus("Getting your location...");
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
@@ -248,8 +258,12 @@ locateBtn.addEventListener("click", () => {
       const lon = pos.coords.longitude;
       const info = await reverseGeocode(lat, lon);
       startWithLocation(lat, lon, info.name, info.timezone, true);
+      setButtonLoading(locateBtn, false);
     },
-    () => showStatus("Location denied. Please enter coordinates manually.")
+    (err) => {
+      showStatus("Location denied. Please enter coordinates manually.");
+      setButtonLoading(locateBtn, false);
+    }
   );
 });
 
@@ -260,9 +274,14 @@ manualBtn.addEventListener("click", async () => {
     showStatus("Enter valid latitude (-90 to 90) and longitude (-180 to 180).");
     return;
   }
+  setButtonLoading(manualBtn, true);
   showStatus("Looking up location...");
-  const info = await reverseGeocode(lat, lon);
-  startWithLocation(lat, lon, info.name, info.timezone, true);
+  try {
+    const info = await reverseGeocode(lat, lon);
+    startWithLocation(lat, lon, info.name, info.timezone, true);
+  } finally {
+    setButtonLoading(manualBtn, false);
+  }
 });
 
 async function reverseGeocode(lat, lon) {
@@ -281,7 +300,7 @@ async function reverseGeocode(lat, lon) {
         const country = a.country || "";
         placeName = country ? `${place}, ${country}` : place;
       }
-    } catch {}
+    } catch (nomErr) { console.warn("Nominatim reverse geocode failed:", nomErr); }
 
     // Get timezone from Open-Meteo
     const res = await fetch(
@@ -290,7 +309,8 @@ async function reverseGeocode(lat, lon) {
     const data = await res.json();
     const tz = data.timezone || "UTC";
     return { name: placeName, timezone: tz };
-  } catch {
+  } catch (err) {
+    console.warn("Reverse geocode failed:", err);
     return { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC" };
   }
 }
@@ -355,12 +375,13 @@ function updateAll() {
     });
     officialTimeEl.textContent = tzFormatter.format(now);
     tzNameEl.textContent = currentTimezone;
-  } catch {
+  } catch (tzErr) {
+    console.warn("Timezone formatting failed:", tzErr);
     officialTimeEl.textContent = "--:--:--";
     tzNameEl.textContent = "Unknown";
   }
 
-  utcTimeEl.textContent = now.toISOString().substr(11, 8);
+  utcTimeEl.textContent = now.toISOString().slice(11, 19);
 
   try {
     const parts = new Intl.DateTimeFormat("en-GB", {
@@ -384,7 +405,8 @@ function updateAll() {
     diffText.textContent = `Solar time is ${diffMin} minute${diffMin !== 1 ? "s" : ""} ${sign} the official clock.`;
     const pct = Math.min((absDiff / 3) * 100, 100);
     diffBar.style.width = pct + "%";
-  } catch {
+  } catch (diffErr) {
+    console.warn("Diff calculation failed:", diffErr);
     diffText.textContent = "—";
   }
 }
@@ -395,4 +417,3 @@ function formatTime(hours) {
   const s = Math.floor(((hours - h) * 60 - m) * 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
-// StartWithLocation(0, 0, "Equator & Prime Meridian", "UTC", false);
