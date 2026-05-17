@@ -26,6 +26,25 @@ let currentTimezone = null;
 let tickInterval = null;
 let searchTimer = null;
 
+const cache = {
+  geocode: new Map(),
+  search: new Map(),
+};
+
+function getCached(map, key, ttlMs) {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > ttlMs) {
+    map.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache(map, key, data) {
+  map.set(key, { data, timestamp: Date.now() });
+}
+
 // ---------------- MAP SETUP ----------------
 let map = null;
 let mapMarker = null;
@@ -169,67 +188,77 @@ document.addEventListener("click", (e) => {
   }
 });
 
+function renderSuggestions(results) {
+  suggestionsBox.textContent = "";
+  if (!results || results.length === 0) {
+    const emptyItem = document.createElement("div");
+    emptyItem.className = "suggestion-item";
+    const emptyText = document.createElement("span");
+    emptyText.className = "suggestion-text";
+    emptyText.textContent = "No results found";
+    emptyItem.appendChild(emptyText);
+    suggestionsBox.appendChild(emptyItem);
+    suggestionsBox.classList.add("active");
+    return;
+  }
+  results.forEach((r) => {
+    const item = document.createElement("div");
+    item.className = "suggestion-item";
+    item.dataset.lat = r.latitude;
+    item.dataset.lon = r.longitude;
+    item.dataset.tz = r.timezone || "";
+
+    const flag = document.createElement("span");
+    flag.className = "suggestion-flag";
+    flag.textContent = countryCodeToFlag(r.country_code);
+
+    const textWrap = document.createElement("div");
+    textWrap.className = "suggestion-text";
+
+    const name = document.createElement("div");
+    name.className = "suggestion-name";
+    name.textContent = r.name;
+
+    const meta = document.createElement("div");
+    meta.className = "suggestion-meta";
+    const region = r.admin1 ? r.admin1 + ", " : "";
+    meta.textContent = region + r.country;
+
+    textWrap.appendChild(name);
+    textWrap.appendChild(meta);
+    item.appendChild(flag);
+    item.appendChild(textWrap);
+
+    item.dataset.name = r.name + (r.admin1 ? ", " + r.admin1 : "") + ", " + r.country;
+    item.addEventListener("click", () => {
+      const lat = parseFloat(item.dataset.lat);
+      const lon = parseFloat(item.dataset.lon);
+      const tz = item.dataset.tz;
+      const itemName = item.dataset.name;
+      searchInput.value = itemName;
+      suggestionsBox.classList.remove("active");
+      startWithLocation(lat, lon, itemName, tz, true);
+    });
+
+    suggestionsBox.appendChild(item);
+  });
+  suggestionsBox.classList.add("active");
+}
+
 async function fetchSuggestions(q) {
+  const cached = getCached(cache.search, q, 5 * 60 * 1000);
+  if (cached) {
+    renderSuggestions(cached);
+    return;
+  }
   try {
     const res = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`
     );
     const data = await res.json();
-    if (!data.results || data.results.length === 0) {
-      suggestionsBox.textContent = "";
-      const emptyItem = document.createElement("div");
-      emptyItem.className = "suggestion-item";
-      const emptyText = document.createElement("span");
-      emptyText.className = "suggestion-text";
-      emptyText.textContent = "No results found";
-      emptyItem.appendChild(emptyText);
-      suggestionsBox.appendChild(emptyItem);
-      suggestionsBox.classList.add("active");
-      return;
-    }
-    suggestionsBox.textContent = "";
-    data.results.forEach((r) => {
-      const item = document.createElement("div");
-      item.className = "suggestion-item";
-      item.dataset.lat = r.latitude;
-      item.dataset.lon = r.longitude;
-      item.dataset.tz = r.timezone || "";
-
-      const flag = document.createElement("span");
-      flag.className = "suggestion-flag";
-      flag.textContent = countryCodeToFlag(r.country_code);
-
-      const textWrap = document.createElement("div");
-      textWrap.className = "suggestion-text";
-
-      const name = document.createElement("div");
-      name.className = "suggestion-name";
-      name.textContent = r.name;
-
-      const meta = document.createElement("div");
-      meta.className = "suggestion-meta";
-      const region = r.admin1 ? r.admin1 + ", " : "";
-      meta.textContent = region + r.country;
-
-      textWrap.appendChild(name);
-      textWrap.appendChild(meta);
-      item.appendChild(flag);
-      item.appendChild(textWrap);
-
-      item.dataset.name = r.name + (r.admin1 ? ", " + r.admin1 : "") + ", " + r.country;
-      item.addEventListener("click", () => {
-        const lat = parseFloat(item.dataset.lat);
-        const lon = parseFloat(item.dataset.lon);
-        const tz = item.dataset.tz;
-        const itemName = item.dataset.name;
-        searchInput.value = itemName;
-        suggestionsBox.classList.remove("active");
-        startWithLocation(lat, lon, itemName, tz, true);
-      });
-
-      suggestionsBox.appendChild(item);
-    });
-    suggestionsBox.classList.add("active");
+    const results = data.results || [];
+    setCache(cache.search, q, results);
+    renderSuggestions(results);
   } catch (err) {
     console.warn("Search failed:", err);
     showStatus("Search failed. Check your connection.");
@@ -285,6 +314,9 @@ manualBtn.addEventListener("click", async () => {
 });
 
 async function reverseGeocode(lat, lon) {
+  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+  const cached = getCached(cache.geocode, cacheKey, 10 * 60 * 1000);
+  if (cached) return cached;
   try {
     // Try Nominatim for a human-readable place name
     let placeName = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
@@ -308,10 +340,14 @@ async function reverseGeocode(lat, lon) {
     );
     const data = await res.json();
     const tz = data.timezone || "UTC";
-    return { name: placeName, timezone: tz };
+    const result = { name: placeName, timezone: tz };
+    setCache(cache.geocode, cacheKey, result);
+    return result;
   } catch (err) {
     console.warn("Reverse geocode failed:", err);
-    return { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC" };
+    const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC" };
+    setCache(cache.geocode, cacheKey, fallback);
+    return fallback;
   }
 }
 
