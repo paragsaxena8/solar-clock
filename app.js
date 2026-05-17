@@ -1,0 +1,371 @@
+const searchInput = document.getElementById("searchInput");
+const suggestionsBox = document.getElementById("suggestions");
+const locateBtn = document.getElementById("locateBtn");
+const manualBtn = document.getElementById("manualBtn");
+const latInput = document.getElementById("latInput");
+const lonInput = document.getElementById("lonInput");
+const statusEl = document.getElementById("status");
+const resultsEl = document.getElementById("results");
+const locationName = document.getElementById("locationName");
+const solarTimeEl = document.getElementById("solarTime");
+const solarLabel = document.getElementById("solarLabel");
+const meanTimeEl = document.getElementById("meanTime");
+const officialTimeEl = document.getElementById("officialTime");
+const tzNameEl = document.getElementById("tzName");
+const utcTimeEl = document.getElementById("utcTime");
+const sunDot = document.getElementById("sunDot");
+const diffBar = document.getElementById("diffBar");
+const diffText = document.getElementById("diffText");
+const toggleMapBtn = document.getElementById("toggleMapBtn");
+const toggleMapLabel = document.getElementById("toggleMapLabel");
+const mapSection = document.getElementById("mapSection");
+
+let currentLat = null;
+let currentLon = null;
+let currentTimezone = null;
+let tickInterval = null;
+let searchTimer = null;
+
+// ---------------- MAP SETUP ----------------
+let map = null;
+let mapMarker = null;
+let currentTileLayer = null;
+
+const tileStyles = {
+  streets: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics",
+    maxZoom: 19,
+  },
+  terrain: {
+    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+    maxZoom: 17,
+  },
+  dark: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution: "© OpenStreetMap © CARTO",
+    maxZoom: 19,
+  },
+};
+
+function initMap() {
+  if (map) return;
+  map = L.map("map", {
+    center: [20, 0],
+    zoom: 2,
+    worldCopyJump: true,
+  });
+  setMapStyle("streets");
+
+  map.on("click", async (e) => {
+    const { lat, lng } = e.latlng;
+    showStatus("Looking up location...");
+    const info = await reverseGeocode(lat, lng);
+    startWithLocation(lat, lng, info.name, info.timezone, false);
+  });
+}
+
+function setMapStyle(styleKey) {
+  if (!map) return;
+  const style = tileStyles[styleKey];
+  if (currentTileLayer) map.removeLayer(currentTileLayer);
+  currentTileLayer = L.tileLayer(style.url, {
+    attribution: style.attribution,
+    maxZoom: style.maxZoom,
+  }).addTo(map);
+}
+
+function updateMapMarker(lat, lon, popupText) {
+  if (!map) return;
+  if (mapMarker) {
+    mapMarker.setLatLng([lat, lon]);
+  } else {
+    const sunIcon = L.divIcon({
+      className: "sun-marker",
+      html: `<div style="
+        width:28px;height:28px;border-radius:50%;
+        background:radial-gradient(circle,#fff7cc,#ffb800 60%,#ff8a3d);
+        box-shadow:0 0 18px rgba(255,184,0,0.9),0 0 6px rgba(255,255,255,0.8);
+        border:2px solid #fff;
+        transform:translate(-50%,-50%);
+      "></div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+    mapMarker = L.marker([lat, lon], { icon: sunIcon }).addTo(map);
+  }
+  if (popupText) {
+    mapMarker.bindPopup(popupText).openPopup();
+  }
+}
+
+toggleMapBtn.addEventListener("click", () => {
+  const isHidden = mapSection.classList.contains("hidden");
+  if (isHidden) {
+    mapSection.classList.remove("hidden");
+    toggleMapLabel.textContent = "Hide Map";
+    setTimeout(() => {
+      initMap();
+      map.invalidateSize();
+      if (currentLat !== null && currentLon !== null) {
+        map.setView([currentLat, currentLon], 6);
+        updateMapMarker(currentLat, currentLon, locationName.textContent);
+      }
+    }, 50);
+  } else {
+    mapSection.classList.add("hidden");
+    toggleMapLabel.textContent = "Show Map";
+  }
+});
+
+document.querySelectorAll(".map-style-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".map-style-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    setMapStyle(btn.dataset.style);
+  });
+});
+
+// ---------------- HELPERS ----------------
+function showStatus(msg) {
+  statusEl.textContent = msg;
+  statusEl.classList.add("visible");
+}
+function hideStatus() {
+  statusEl.classList.remove("visible");
+}
+
+function countryCodeToFlag(code) {
+  if (!code || code.length !== 2) return "🌍";
+  const A = 0x1f1e6;
+  return String.fromCodePoint(
+    A + code.toUpperCase().charCodeAt(0) - 65,
+    A + code.toUpperCase().charCodeAt(1) - 65
+  );
+}
+
+// ---------------- SEARCH ----------------
+searchInput.addEventListener("input", (e) => {
+  const q = e.target.value.trim();
+  clearTimeout(searchTimer);
+  if (q.length < 2) {
+    suggestionsBox.classList.remove("active");
+    return;
+  }
+  searchTimer = setTimeout(() => fetchSuggestions(q), 250);
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".search-wrapper")) {
+    suggestionsBox.classList.remove("active");
+  }
+});
+
+async function fetchSuggestions(q) {
+  try {
+    const res = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`
+    );
+    const data = await res.json();
+    if (!data.results || data.results.length === 0) {
+      suggestionsBox.innerHTML = '<div class="suggestion-item"><span class="suggestion-text">No results found</span></div>';
+      suggestionsBox.classList.add("active");
+      return;
+    }
+    suggestionsBox.innerHTML = data.results
+      .map(
+        (r) => `
+        <div class="suggestion-item" data-lat="${r.latitude}" data-lon="${r.longitude}" data-tz="${r.timezone || ""}" data-name="${r.name}${r.admin1 ? ", " + r.admin1 : ""}, ${r.country}">
+          <span class="suggestion-flag">${countryCodeToFlag(r.country_code)}</span>
+          <div class="suggestion-text">
+            <div class="suggestion-name">${r.name}</div>
+            <div class="suggestion-meta">${r.admin1 ? r.admin1 + ", " : ""}${r.country}</div>
+          </div>
+        </div>`
+      )
+      .join("");
+    suggestionsBox.classList.add("active");
+
+    suggestionsBox.querySelectorAll(".suggestion-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        const lat = parseFloat(item.dataset.lat);
+        const lon = parseFloat(item.dataset.lon);
+        const tz = item.dataset.tz;
+        const name = item.dataset.name;
+        searchInput.value = name;
+        suggestionsBox.classList.remove("active");
+        startWithLocation(lat, lon, name, tz, true);
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    showStatus("Search failed. Check your connection.");
+  }
+}
+
+locateBtn.addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    showStatus("Geolocation not supported.");
+    return;
+  }
+  showStatus("Getting your location...");
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const info = await reverseGeocode(lat, lon);
+      startWithLocation(lat, lon, info.name, info.timezone, true);
+    },
+    () => showStatus("Location denied. Please enter coordinates manually.")
+  );
+});
+
+manualBtn.addEventListener("click", async () => {
+  const lat = parseFloat(latInput.value);
+  const lon = parseFloat(lonInput.value);
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    showStatus("Enter valid latitude (-90 to 90) and longitude (-180 to 180).");
+    return;
+  }
+  showStatus("Looking up location...");
+  const info = await reverseGeocode(lat, lon);
+  startWithLocation(lat, lon, info.name, info.timezone, true);
+});
+
+async function reverseGeocode(lat, lon) {
+  try {
+    // Try Nominatim for a human-readable place name
+    let placeName = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+    try {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const nom = await nomRes.json();
+      if (nom && nom.display_name) {
+        const a = nom.address || {};
+        const place = a.city || a.town || a.village || a.county || a.state || nom.display_name.split(",")[0];
+        const country = a.country || "";
+        placeName = country ? `${place}, ${country}` : place;
+      }
+    } catch {}
+
+    // Get timezone from Open-Meteo
+    const res = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1`
+    );
+    const data = await res.json();
+    const tz = data.timezone || "UTC";
+    return { name: placeName, timezone: tz };
+  } catch {
+    return { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC" };
+  }
+}
+
+function startWithLocation(lat, lon, name, timezone, recenterMap) {
+  currentLat = lat;
+  currentLon = lon;
+  currentTimezone = timezone || "UTC";
+  locationName.textContent = name;
+  resultsEl.classList.remove("hidden");
+  hideStatus();
+
+  // Update map if it exists
+  if (map) {
+    if (recenterMap) {
+      map.setView([lat, lon], 6);
+    }
+    updateMapMarker(lat, lon, name);
+  }
+
+  if (tickInterval) clearInterval(tickInterval);
+  updateAll();
+  tickInterval = setInterval(updateAll, 1000);
+}
+
+// ---------------- TIME LOGIC ----------------
+function updateAll() {
+  const now = new Date();
+  const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+
+  const dayOfYear = Math.floor((now - new Date(Date.UTC(now.getUTCFullYear(), 0, 0))) / 86400000);
+  const B = ((dayOfYear - 81) * 2 * Math.PI) / 365;
+  const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+
+  const meanHours = (utcHours + currentLon / 15 + 24) % 24;
+  const trueHours = (meanHours + EoT / 60 + 24) % 24;
+
+  meanTimeEl.textContent = formatTime(meanHours);
+  solarTimeEl.textContent = formatTime(trueHours);
+
+  if (Math.abs(trueHours - 12) < 0.01) {
+    solarLabel.textContent = "☀️ Solar noon!";
+  } else if (trueHours < 6 || trueHours > 20) {
+    solarLabel.textContent = "🌙 Night time";
+  } else {
+    solarLabel.textContent = "Real time by the sun";
+  }
+
+  const t = trueHours / 24;
+  const x = (1 - t) * (1 - t) * 20 + 2 * (1 - t) * t * 150 + t * t * 280;
+  const y = (1 - t) * (1 - t) * 90 + 2 * (1 - t) * t * -30 + t * t * 90;
+  sunDot.setAttribute("cx", x);
+  sunDot.setAttribute("cy", y);
+
+  try {
+    const tzFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: currentTimezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    officialTimeEl.textContent = tzFormatter.format(now);
+    tzNameEl.textContent = currentTimezone;
+  } catch {
+    officialTimeEl.textContent = "--:--:--";
+    tzNameEl.textContent = "Unknown";
+  }
+
+  utcTimeEl.textContent = now.toISOString().substr(11, 8);
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: currentTimezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const hh = parseInt(parts.find((p) => p.type === "hour").value);
+    const mm = parseInt(parts.find((p) => p.type === "minute").value);
+    const ss = parseInt(parts.find((p) => p.type === "second").value);
+    const officialHours = hh + mm / 60 + ss / 3600;
+
+    let diff = trueHours - officialHours;
+    if (diff > 12) diff -= 24;
+    if (diff < -12) diff += 24;
+    const absDiff = Math.abs(diff);
+    const diffMin = Math.round(absDiff * 60);
+    const sign = diff >= 0 ? "ahead of" : "behind";
+    diffText.textContent = `Solar time is ${diffMin} minute${diffMin !== 1 ? "s" : ""} ${sign} the official clock.`;
+    const pct = Math.min((absDiff / 3) * 100, 100);
+    diffBar.style.width = pct + "%";
+  } catch {
+    diffText.textContent = "—";
+  }
+}
+
+function formatTime(hours) {
+  const h = Math.floor(hours);
+  const m = Math.floor((hours - h) * 60);
+  const s = Math.floor(((hours - h) * 60 - m) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+// StartWithLocation(0, 0, "Equator & Prime Meridian", "UTC", false);
