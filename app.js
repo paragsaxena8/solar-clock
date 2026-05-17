@@ -101,7 +101,9 @@ function updateMapMarker(lat, lon, popupText) {
     mapMarker = L.marker([lat, lon], { icon: sunIcon }).addTo(map);
   }
   if (popupText) {
-    mapMarker.bindPopup(popupText).openPopup();
+    const popupContent = document.createElement("span");
+    popupContent.textContent = popupText;
+    mapMarker.bindPopup(popupContent).openPopup();
   }
 }
 
