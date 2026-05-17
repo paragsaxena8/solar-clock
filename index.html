@@ -111,9 +111,18 @@
         <div id="solarTime" class="time-big">--:--:--</div>
         <div id="solarLabel" class="card-sub">Real time by the sun</div>
         <svg class="sun-arc" viewBox="0 0 300 100" preserveAspectRatio="xMidYMid meet">
-          <path d="M 20 90 Q 150 -30 280 90" fill="none" stroke="rgba(255,213,74,0.3)" stroke-width="2" stroke-dasharray="4 4"/>
-          <line x1="20" y1="90" x2="280" y2="90" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
-          <circle id="sunDot" cx="150" cy="20" r="8" fill="#ffb800"/>
+          <defs>
+            <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="rgba(212,175,55,0.15)"/>
+              <stop offset="50%" stop-color="rgba(212,175,55,0.5)"/>
+              <stop offset="100%" stop-color="rgba(212,175,55,0.15)"/>
+            </linearGradient>
+          </defs>
+          <path d="M 20 90 Q 150 -30 280 90" fill="none" stroke="url(#arcGrad)" stroke-width="2"/>
+          <line x1="20" y1="90" x2="280" y2="90" stroke="rgba(138,134,117,0.2)" stroke-width="1"/>
+          <text id="sunriseLabel" x="10" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif">--:--</text>
+          <text id="sunsetLabel" x="265" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif">--:--</text>
+          <circle id="sunDot" cx="150" cy="20" r="8" fill="#d4af37"/>
         </svg>
       </div>
 
@@ -151,6 +160,26 @@
         </div>
         <div id="utcTime" class="time-big">--:--:--</div>
         <div class="card-sub">Global reference</div>
+      </div>
+    </div>
+
+    <div class="sun-schedule">
+      <div class="sun-event">
+        <span class="sun-event-icon">&#9788;</span>
+        <span class="sun-event-label">Sunrise</span>
+        <span id="sunriseTime" class="sun-event-time">--:--</span>
+      </div>
+      <div class="sun-arc-mini">
+        <svg viewBox="0 0 200 60" preserveAspectRatio="xMidYMid meet">
+          <path d="M 10 50 Q 100 -10 190 50" fill="none" stroke="rgba(212,175,55,0.2)" stroke-width="1.5"/>
+          <line x1="10" y1="50" x2="190" y2="50" stroke="rgba(138,134,117,0.3)" stroke-width="1"/>
+          <circle id="sunDotMini" cx="100" cy="15" r="5" fill="#d4af37"/>
+        </svg>
+      </div>
+      <div class="sun-event">
+        <span class="sun-event-icon">&#9788;</span>
+        <span class="sun-event-label">Sunset</span>
+        <span id="sunsetTime" class="sun-event-time">--:--</span>
       </div>
     </div>
 

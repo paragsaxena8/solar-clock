@@ -440,6 +440,58 @@ body {
   margin-bottom: 24px;
 }
 
+.sun-schedule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: #161830;
+  border-radius: 12px;
+  border: 1px solid #2a2f55;
+}
+
+.sun-event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sun-event-icon {
+  font-size: 1.2rem;
+}
+
+.sun-event-label {
+  font-size: 0.8rem;
+  color: #8a8fb8;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sun-event-time {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #e8eaf6;
+}
+
+.sun-arc-mini {
+  flex: 1;
+  max-width: 200px;
+}
+
+.sun-arc-mini svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+#sunDotMini {
+  filter: drop-shadow(0 0 4px rgba(212, 175, 55, 0.6));
+}
+
 .card {
   background: #161830;
   border: 1px solid #2a2f55;

@@ -19,10 +19,17 @@ const diffText = document.getElementById("diffText");
 const toggleMapBtn = document.getElementById("toggleMapBtn");
 const toggleMapLabel = document.getElementById("toggleMapLabel");
 const mapSection = document.getElementById("mapSection");
+const sunriseTimeEl = document.getElementById("sunriseTime");
+const sunsetTimeEl = document.getElementById("sunsetTime");
+const sunriseLabel = document.getElementById("sunriseLabel");
+const sunsetLabel = document.getElementById("sunsetLabel");
+const sunDotMini = document.getElementById("sunDotMini");
 
 let currentLat = null;
 let currentLon = null;
 let currentTimezone = null;
+let currentSunrise = null;
+let currentSunset = null;
 let tickInterval = null;
 let searchTimer = null;
 
@@ -86,7 +93,7 @@ function initMap() {
     const { lat, lng } = e.latlng;
     showStatus("Looking up location...");
     const info = await reverseGeocode(lat, lng);
-    startWithLocation(lat, lng, info.name, info.timezone, false);
+    startWithLocation(lat, lng, info.name, info.timezone, info.sunrise, info.sunset, false);
   });
 }
 
@@ -237,7 +244,7 @@ function renderSuggestions(results) {
       const itemName = item.dataset.name;
       searchInput.value = itemName;
       suggestionsBox.classList.remove("active");
-      startWithLocation(lat, lon, itemName, tz, true);
+      startWithLocation(lat, lon, itemName, tz, null, null, true);
     });
 
     suggestionsBox.appendChild(item);
@@ -286,7 +293,7 @@ locateBtn.addEventListener("click", () => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const info = await reverseGeocode(lat, lon);
-      startWithLocation(lat, lon, info.name, info.timezone, true);
+      startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
       setButtonLoading(locateBtn, false);
     },
     (err) => {
@@ -307,7 +314,7 @@ manualBtn.addEventListener("click", async () => {
   showStatus("Looking up location...");
   try {
     const info = await reverseGeocode(lat, lon);
-    startWithLocation(lat, lon, info.name, info.timezone, true);
+    startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
   } finally {
     setButtonLoading(manualBtn, false);
   }
@@ -336,28 +343,45 @@ async function reverseGeocode(lat, lon) {
 
     // Get timezone from Open-Meteo
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1`
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1&daily=sunrise,sunset`
     );
     const data = await res.json();
     const tz = data.timezone || "UTC";
-    const result = { name: placeName, timezone: tz };
+    const daily = data.daily || {};
+    const sunriseISO = daily.sunrise ? daily.sunrise[0] : null;
+    const sunsetISO = daily.sunset ? daily.sunset[0] : null;
+    const result = { name: placeName, timezone: tz, sunrise: sunriseISO, sunset: sunsetISO };
     setCache(cache.geocode, cacheKey, result);
     return result;
   } catch (err) {
     console.warn("Reverse geocode failed:", err);
-    const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC" };
+    const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC", sunrise: null, sunset: null };
     setCache(cache.geocode, cacheKey, fallback);
     return fallback;
   }
 }
 
-function startWithLocation(lat, lon, name, timezone, recenterMap) {
+function startWithLocation(lat, lon, name, timezone, sunrise, sunset, recenterMap) {
   currentLat = lat;
   currentLon = lon;
   currentTimezone = timezone || "UTC";
+  currentSunrise = sunrise;
+  currentSunset = sunset;
   locationName.textContent = name;
   resultsEl.classList.remove("hidden");
   hideStatus();
+
+  if (!currentSunrise || !currentSunset) {
+    (async () => {
+      try {
+        const info = await reverseGeocode(lat, lon);
+        currentSunrise = info.sunrise;
+        currentSunset = info.sunset;
+      } catch (err) {
+        console.warn("Could not fetch sunrise/sunset:", err);
+      }
+    })();
+  }
 
   // Update map if it exists
   if (map) {
@@ -387,8 +411,44 @@ function updateAll() {
   meanTimeEl.textContent = formatTime(meanHours);
   solarTimeEl.textContent = formatTime(trueHours);
 
+  // Update sunrise/sunset display
+  if (currentSunrise) {
+    try {
+      const sr = new Date(currentSunrise);
+      sunriseTimeEl.textContent = formatTimeFromMinutes(sr.getHours() + sr.getMinutes() / 60);
+      sunriseLabel.textContent = formatTimeFromMinutes(sr.getHours() + sr.getMinutes() / 60);
+    } catch (e) {
+      sunriseTimeEl.textContent = "--:--";
+      sunriseLabel.textContent = "--:--";
+    }
+  } else {
+    sunriseTimeEl.textContent = "--:--";
+    sunriseLabel.textContent = "--:--";
+  }
+  if (currentSunset) {
+    try {
+      const ss = new Date(currentSunset);
+      sunsetTimeEl.textContent = formatTimeFromMinutes(ss.getHours() + ss.getMinutes() / 60);
+      sunsetLabel.textContent = formatTimeFromMinutes(ss.getHours() + ss.getMinutes() / 60);
+    } catch (e) {
+      sunsetTimeEl.textContent = "--:--";
+      sunsetLabel.textContent = "--:--";
+    }
+  } else {
+    sunsetTimeEl.textContent = "--:--";
+    sunsetLabel.textContent = "--:--";
+  }
+
   if (Math.abs(trueHours - 12) < 0.01) {
-    solarLabel.textContent = "☀️ Solar noon!";
+    solarLabel.textContent = "☀ Solar noon!";
+  } else if (currentSunrise && currentSunset) {
+    const srHours = new Date(currentSunrise).getHours() + new Date(currentSunrise).getMinutes() / 60;
+    const ssHours = new Date(currentSunset).getHours() + new Date(currentSunset).getMinutes() / 60;
+    if (trueHours < srHours || trueHours > ssHours) {
+      solarLabel.textContent = "🌙 Night time";
+    } else {
+      solarLabel.textContent = "Real time by the sun";
+    }
   } else if (trueHours < 6 || trueHours > 20) {
     solarLabel.textContent = "🌙 Night time";
   } else {
@@ -452,4 +512,10 @@ function formatTime(hours) {
   const m = Math.floor((hours - h) * 60);
   const s = Math.floor(((hours - h) * 60 - m) * 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatTimeFromMinutes(hours) {
+  const h = Math.floor(hours);
+  const m = Math.floor((hours - h) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
