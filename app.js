@@ -1,61 +1,4 @@
-const searchInput = document.getElementById("searchInput");
-const suggestionsBox = document.getElementById("suggestions");
-const locateBtn = document.getElementById("locateBtn");
-const manualBtn = document.getElementById("manualBtn");
-const latInput = document.getElementById("latInput");
-const lonInput = document.getElementById("lonInput");
-const statusEl = document.getElementById("status");
-const resultsEl = document.getElementById("results");
-const locationName = document.getElementById("locationName");
-const solarTimeEl = document.getElementById("solarTime");
-const solarLabel = document.getElementById("solarLabel");
-const meanTimeEl = document.getElementById("meanTime");
-const officialTimeEl = document.getElementById("officialTime");
-const tzNameEl = document.getElementById("tzName");
-const utcTimeEl = document.getElementById("utcTime");
-const sunDot = document.getElementById("sunDot");
-const diffBar = document.getElementById("diffBar");
-const diffText = document.getElementById("diffText");
-const diffBadge = document.getElementById("diffBadge");
-const toggleMapBtn = document.getElementById("toggleMapBtn");
-const coordsToggle = document.getElementById("coordsToggle");
-const coordsSection = document.getElementById("coordsSection");
-const mapSection = document.getElementById("mapSection");
-const sunriseTimeEl = document.getElementById("sunriseTime");
-const sunsetTimeEl = document.getElementById("sunsetTime");
-const sunriseLabel = document.getElementById("sunriseLabel");
-const sunsetLabel = document.getElementById("sunsetLabel");
-const sunDotMini = document.getElementById("sunDotMini");
-
-let currentLat = null;
-let currentLon = null;
-let currentTimezone = null;
-let currentSunrise = null;
-let currentSunset = null;
-let tickInterval = null;
-let searchTimer = null;
-let focusedIndex = -1;
-
-const cache = {
-  geocode: new Map(),
-  search: new Map(),
-};
-
-function getCached(map, key, ttlMs) {
-  const entry = map.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > ttlMs) {
-    map.delete(key);
-    return null;
-  }
-  return entry.data;
-}
-
-function setCache(map, key, data) {
-  map.set(key, { data, timestamp: Date.now() });
-}
-
-// ---------------- MAP SETUP ----------------
+// Leaflet map (outside Alpine reactivity)
 let map = null;
 let mapMarker = null;
 let currentTileLayer = null;
@@ -63,535 +6,489 @@ let currentTileLayer = null;
 const tileStyles = {
   streets: {
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   },
   satellite: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics",
+    attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
     maxZoom: 19,
   },
   terrain: {
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+    attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
     maxZoom: 17,
   },
   dark: {
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: "© OpenStreetMap © CARTO",
+    attribution: "&copy; OpenStreetMap &copy; CARTO",
     maxZoom: 19,
   },
 };
 
-function initMap() {
-  if (map) return;
-  map = L.map("map", {
-    center: [20, 0],
-    zoom: 2,
-    worldCopyJump: true,
-  });
-  setMapStyle("streets");
+function solarClock() {
+  return {
+    // UI State
+    searchQuery: "",
+    suggestions: [],
+    suggestionsVisible: false,
+    focusedIndex: -1,
+    resultsVisible: false,
+    mapVisible: false,
+    coordsVisible: false,
+    statusMsg: "",
+    statusVisible: false,
+    locateLoading: false,
+    coordsLoading: false,
+    activeMapStyle: "streets",
 
-  map.on("click", async (e) => {
-    const { lat, lng } = e.latlng;
-    showStatus("Looking up location...");
-    const info = await reverseGeocode(lat, lng);
-    startWithLocation(lat, lng, info.name, info.timezone, info.sunrise, info.sunset, false);
-  });
-}
+    // Display Data
+    locationName: "—",
+    solarTime: "--:--:--",
+    solarLabel: "Real time by the sun",
+    meanTime: "--:--:--",
+    officialTime: "--:--:--",
+    tzName: "—",
+    utcTime: "--:--:--",
+    diffBadge: "—",
+    diffAhead: true,
+    diffDirection: "behind",
+    diffBarLeft: "50%",
+    sunriseLabel: "--:--",
+    sunsetLabel: "--:--",
+    sunDotX: 150,
+    sunDotY: 20,
+    latValue: "",
+    lonValue: "",
 
-function setMapStyle(styleKey) {
-  if (!map) return;
-  const style = tileStyles[styleKey];
-  if (currentTileLayer) map.removeLayer(currentTileLayer);
-  currentTileLayer = L.tileLayer(style.url, {
-    attribution: style.attribution,
-    maxZoom: style.maxZoom,
-  }).addTo(map);
-}
+    // Internal
+    currentLat: null,
+    currentLon: null,
+    currentTimezone: null,
+    currentSunrise: null,
+    currentSunset: null,
+    tickInterval: null,
+    cache: { geocode: new Map(), search: new Map() },
 
-function updateMapMarker(lat, lon, popupText) {
-  if (!map) return;
-  if (mapMarker) {
-    mapMarker.setLatLng([lat, lon]);
-  } else {
-    const sunIcon = L.divIcon({
-      className: "sun-marker",
-      html: `<div style="
-        width:28px;height:28px;border-radius:50%;
-        background:radial-gradient(circle,#f0d878,#d4af37 60%,#c48a3f);
-        box-shadow:0 0 18px rgba(212,175,55,0.9),0 0 6px rgba(232,228,217,0.8);
-        border:2px solid #e8e4d9;
-        transform:translate(-50%,-50%);
-      "></div>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    });
-    mapMarker = L.marker([lat, lon], { icon: sunIcon }).addTo(map);
-  }
-  if (popupText) {
-    const popupContent = document.createElement("span");
-    popupContent.textContent = popupText;
-    mapMarker.bindPopup(popupContent).openPopup();
-  }
-}
-
-toggleMapBtn.addEventListener("click", () => {
-  const isHidden = mapSection.classList.contains("hidden");
-  if (isHidden) {
-    mapSection.classList.remove("hidden");
-    toggleMapBtn.classList.add("active");
-    toggleMapBtn.setAttribute("aria-expanded", "true");
-    // Hide coords when showing map
-    coordsSection.classList.add("hidden");
-    coordsToggle.classList.remove("active");
-    setTimeout(() => {
-      initMap();
-      map.invalidateSize();
-      if (currentLat !== null && currentLon !== null) {
-        map.setView([currentLat, currentLon], 6);
-        updateMapMarker(currentLat, currentLon, locationName.textContent);
-      }
-    }, 50);
-  } else {
-    mapSection.classList.add("hidden");
-    toggleMapBtn.classList.remove("active");
-    toggleMapBtn.setAttribute("aria-expanded", "false");
-  }
-});
-
-document.querySelectorAll(".map-style-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".map-style-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    setMapStyle(btn.dataset.style);
-  });
-});
-
-coordsToggle.addEventListener("click", () => {
-  const isHidden = coordsSection.classList.contains("hidden");
-  if (isHidden) {
-    coordsSection.classList.remove("hidden");
-    coordsToggle.classList.add("active");
-    // Hide map when showing coords
-    mapSection.classList.add("hidden");
-    toggleMapBtn.classList.remove("active");
-    toggleMapBtn.setAttribute("aria-expanded", "false");
-  } else {
-    coordsSection.classList.add("hidden");
-    coordsToggle.classList.remove("active");
-  }
-});
-
-// ---------------- HELPERS ----------------
-function showStatus(msg) {
-  statusEl.textContent = msg;
-  statusEl.classList.add("visible");
-}
-function hideStatus() {
-  statusEl.classList.remove("visible");
-}
-
-function countryCodeToFlag(code) {
-  if (!code || code.length !== 2) return "🌍";
-  const A = 0x1f1e6;
-  return String.fromCodePoint(
-    A + code.toUpperCase().charCodeAt(0) - 65,
-    A + code.toUpperCase().charCodeAt(1) - 65
-  );
-}
-
-// ---------------- SEARCH ----------------
-searchInput.addEventListener("input", (e) => {
-  const q = e.target.value.trim();
-  clearTimeout(searchTimer);
-  if (q.length < 2) {
-    suggestionsBox.classList.remove("active");
-    return;
-  }
-  searchTimer = setTimeout(() => fetchSuggestions(q), 250);
-});
-
-document.addEventListener("click", (e) => {
-  if (!e.target.closest(".search-wrapper")) {
-    suggestionsBox.classList.remove("active");
-    searchInput.setAttribute("aria-expanded", "false");
-  }
-});
-
-searchInput.addEventListener("keydown", (e) => {
-  const items = suggestionsBox.querySelectorAll(".suggestion-item[data-lat]");
-  if (!items.length) return;
-
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
-    updateFocusedItem(items);
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    focusedIndex = Math.max(focusedIndex - 1, 0);
-    updateFocusedItem(items);
-  } else if (e.key === "Enter" && focusedIndex >= 0) {
-    e.preventDefault();
-    items[focusedIndex].click();
-  } else if (e.key === "Escape") {
-    suggestionsBox.classList.remove("active");
-    searchInput.setAttribute("aria-expanded", "false");
-    focusedIndex = -1;
-  }
-});
-
-function updateFocusedItem(items) {
-  items.forEach((item, i) => {
-    item.classList.toggle("suggestion-focused", i === focusedIndex);
-    item.setAttribute("aria-selected", i === focusedIndex ? "true" : "false");
-  });
-  if (focusedIndex >= 0 && items[focusedIndex]) {
-    searchInput.setAttribute("aria-activedescendant", items[focusedIndex].id || "");
-    items[focusedIndex].scrollIntoView({ block: "nearest" });
-  } else {
-    searchInput.setAttribute("aria-activedescendant", "");
-  }
-}
-
-function renderSuggestions(results) {
-  suggestionsBox.textContent = "";
-  if (!results || results.length === 0) {
-    const emptyItem = document.createElement("div");
-    emptyItem.className = "suggestion-item";
-    const emptyText = document.createElement("span");
-    emptyText.className = "suggestion-text";
-    emptyText.textContent = "No results found";
-    emptyItem.appendChild(emptyText);
-    suggestionsBox.appendChild(emptyItem);
-    suggestionsBox.classList.add("active");
-    return;
-  }
-  results.forEach((r, suggestionIndex) => {
-    const item = document.createElement("div");
-    item.className = "suggestion-item";
-    item.id = `suggestion-${suggestionIndex}`;
-    item.setAttribute("role", "option");
-    item.dataset.lat = r.latitude;
-    item.dataset.lon = r.longitude;
-    item.dataset.tz = r.timezone || "";
-
-    const flag = document.createElement("span");
-    flag.className = "suggestion-flag";
-    flag.textContent = countryCodeToFlag(r.country_code);
-
-    const textWrap = document.createElement("div");
-    textWrap.className = "suggestion-text";
-
-    const name = document.createElement("div");
-    name.className = "suggestion-name";
-    name.textContent = r.name;
-
-    const meta = document.createElement("div");
-    meta.className = "suggestion-meta";
-    const region = r.admin1 ? r.admin1 + ", " : "";
-    meta.textContent = region + r.country;
-
-    textWrap.appendChild(name);
-    textWrap.appendChild(meta);
-    item.appendChild(flag);
-    item.appendChild(textWrap);
-
-    item.dataset.name = r.name + (r.admin1 ? ", " + r.admin1 : "") + ", " + r.country;
-    item.addEventListener("click", () => {
-      const lat = parseFloat(item.dataset.lat);
-      const lon = parseFloat(item.dataset.lon);
-      const tz = item.dataset.tz;
-      const itemName = item.dataset.name;
-      searchInput.value = itemName;
-      suggestionsBox.classList.remove("active");
-      searchInput.setAttribute("aria-expanded", "false");
-      startWithLocation(lat, lon, itemName, tz, null, null, true);
-    });
-
-    suggestionsBox.appendChild(item);
-  });
-  suggestionsBox.classList.add("active");
-  searchInput.setAttribute("aria-expanded", "true");
-}
-
-async function fetchSuggestions(q) {
-  const cached = getCached(cache.search, q, 5 * 60 * 1000);
-  if (cached) {
-    renderSuggestions(cached);
-    return;
-  }
-  try {
-    const res = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`
-    );
-    const data = await res.json();
-    const results = data.results || [];
-    setCache(cache.search, q, results);
-    renderSuggestions(results);
-  } catch (err) {
-    console.warn("Search failed:", err);
-    showStatus("Search failed. Check your connection.");
-  }
-}
-
-function setButtonLoading(btn, isLoading) {
-  btn.disabled = isLoading;
-  if (isLoading) {
-    btn.classList.add("btn-loading");
-  } else {
-    btn.classList.remove("btn-loading");
-  }
-}
-
-locateBtn.addEventListener("click", () => {
-  if (!navigator.geolocation) {
-    showStatus("Geolocation not supported.");
-    return;
-  }
-  setButtonLoading(locateBtn, true);
-  showStatus("Getting your location...");
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const info = await reverseGeocode(lat, lon);
-      startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
-      setButtonLoading(locateBtn, false);
+    // Lifecycle
+    init() {
+      this.$watch("mapVisible", (value) => {
+        if (value) {
+          this.$nextTick(() => {
+            this.initMap();
+            if (map) map.invalidateSize();
+            if (this.currentLat !== null) {
+              map.setView([this.currentLat, this.currentLon], 6);
+              this.updateMapMarker(this.currentLat, this.currentLon, this.locationName);
+            }
+          });
+        }
+      });
     },
-    (err) => {
-      showStatus("Location denied. Please enter coordinates manually.");
-      setButtonLoading(locateBtn, false);
-    }
-  );
-});
 
-manualBtn.addEventListener("click", async () => {
-  const lat = parseFloat(latInput.value);
-  const lon = parseFloat(lonInput.value);
-  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    showStatus("Enter valid latitude (-90 to 90) and longitude (-180 to 180).");
-    return;
-  }
-  setButtonLoading(manualBtn, true);
-  showStatus("Looking up location...");
-  try {
-    const info = await reverseGeocode(lat, lon);
-    startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
-  } finally {
-    setButtonLoading(manualBtn, false);
-  }
-});
+    // Cache
+    getCached(cacheMap, key, ttlMs) {
+      const entry = cacheMap.get(key);
+      if (!entry) return null;
+      if (Date.now() - entry.timestamp > ttlMs) {
+        cacheMap.delete(key);
+        return null;
+      }
+      return entry.data;
+    },
 
-async function reverseGeocode(lat, lon) {
-  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-  const cached = getCached(cache.geocode, cacheKey, 10 * 60 * 1000);
-  if (cached) return cached;
-  try {
-    // Try Nominatim for a human-readable place name
-    let placeName = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
-    try {
-      const nomRes = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
-        { headers: { "Accept-Language": "en" } }
+    setCache(cacheMap, key, data) {
+      cacheMap.set(key, { data, timestamp: Date.now() });
+    },
+
+    // Map
+    initMap() {
+      if (map) return;
+      map = L.map("map", { center: [20, 0], zoom: 2, worldCopyJump: true });
+      this.setMapStyle(this.activeMapStyle);
+      map.on("click", async (e) => {
+        const { lat, lng } = e.latlng;
+        this.showStatus("Looking up location...");
+        const info = await this.reverseGeocode(lat, lng);
+        this.startWithLocation(lat, lng, info.name, info.timezone, info.sunrise, info.sunset, false);
+      });
+    },
+
+    setMapStyle(styleKey) {
+      this.activeMapStyle = styleKey;
+      if (!map) return;
+      const style = tileStyles[styleKey];
+      if (currentTileLayer) map.removeLayer(currentTileLayer);
+      currentTileLayer = L.tileLayer(style.url, {
+        attribution: style.attribution,
+        maxZoom: style.maxZoom,
+      }).addTo(map);
+    },
+
+    updateMapMarker(lat, lon, popupText) {
+      if (!map) return;
+      if (mapMarker) {
+        mapMarker.setLatLng([lat, lon]);
+      } else {
+        const sunIcon = L.divIcon({
+          className: "sun-marker",
+          html: `<div style="
+            width:28px;height:28px;border-radius:50%;
+            background:radial-gradient(circle,#f0d878,#d4af37 60%,#c48a3f);
+            box-shadow:0 0 18px rgba(212,175,55,0.9),0 0 6px rgba(232,228,217,0.8);
+            border:2px solid #e8e4d9;
+            transform:translate(-50%,-50%);
+          "></div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
+        mapMarker = L.marker([lat, lon], { icon: sunIcon }).addTo(map);
+      }
+      if (popupText) {
+        const el = document.createElement("span");
+        el.textContent = popupText;
+        mapMarker.bindPopup(el).openPopup();
+      }
+    },
+
+    // Status
+    showStatus(msg) {
+      this.statusMsg = msg;
+      this.statusVisible = true;
+    },
+
+    hideStatus() {
+      this.statusVisible = false;
+    },
+
+    // Helpers
+    countryCodeToFlag(code) {
+      if (!code || code.length !== 2) return "🌍";
+      const A = 0x1f1e6;
+      return String.fromCodePoint(
+        A + code.toUpperCase().charCodeAt(0) - 65,
+        A + code.toUpperCase().charCodeAt(1) - 65
       );
-      const nom = await nomRes.json();
-      if (nom && nom.display_name) {
-        const a = nom.address || {};
-        const place = a.city || a.town || a.village || a.county || a.state || nom.display_name.split(",")[0];
-        const country = a.country || "";
-        placeName = country ? `${place}, ${country}` : place;
+    },
+
+    // Search
+    fetchSuggestions() {
+      const q = this.searchQuery.trim();
+      if (q.length < 2) {
+        this.suggestionsVisible = false;
+        this.suggestions = [];
+        return;
       }
-    } catch (nomErr) { console.warn("Nominatim reverse geocode failed:", nomErr); }
+      const cached = this.getCached(this.cache.search, q, 5 * 60 * 1000);
+      if (cached) {
+        this.suggestions = cached;
+        this.suggestionsVisible = true;
+        this.focusedIndex = -1;
+        return;
+      }
+      fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          const results = (data.results || []).map((r) => ({
+            lat: r.latitude,
+            lon: r.longitude,
+            timezone: r.timezone || "",
+            name: r.name,
+            flag: this.countryCodeToFlag(r.country_code),
+            meta: (r.admin1 ? r.admin1 + ", " : "") + r.country,
+            fullName: r.name + (r.admin1 ? ", " + r.admin1 : "") + ", " + r.country,
+          }));
+          this.setCache(this.cache.search, q, results);
+          this.suggestions = results;
+          this.suggestionsVisible = true;
+          this.focusedIndex = -1;
+        })
+        .catch((err) => {
+          console.warn("Search failed:", err);
+          this.showStatus("Search failed. Check your connection.");
+        });
+    },
 
-    // Get timezone from Open-Meteo
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1&daily=sunrise,sunset`
-    );
-    const data = await res.json();
-    const tz = data.timezone || "UTC";
-    const daily = data.daily || {};
-    const sunriseISO = daily.sunrise ? daily.sunrise[0] : null;
-    const sunsetISO = daily.sunset ? daily.sunset[0] : null;
-    const result = { name: placeName, timezone: tz, sunrise: sunriseISO, sunset: sunsetISO };
-    setCache(cache.geocode, cacheKey, result);
-    return result;
-  } catch (err) {
-    console.warn("Reverse geocode failed:", err);
-    const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC", sunrise: null, sunset: null };
-    setCache(cache.geocode, cacheKey, fallback);
-    return fallback;
-  }
-}
+    handleSearchKeydown(e) {
+      if (!this.suggestions.length || !this.suggestionsVisible) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        this.focusedIndex = Math.min(this.focusedIndex + 1, this.suggestions.length - 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        this.focusedIndex = Math.max(this.focusedIndex - 1, 0);
+      } else if (e.key === "Enter" && this.focusedIndex >= 0) {
+        e.preventDefault();
+        this.selectSuggestion(this.suggestions[this.focusedIndex]);
+      } else if (e.key === "Escape") {
+        this.closeSuggestions();
+      }
+    },
 
-function startWithLocation(lat, lon, name, timezone, sunrise, sunset, recenterMap) {
-  currentLat = lat;
-  currentLon = lon;
-  currentTimezone = timezone || "UTC";
-  currentSunrise = sunrise;
-  currentSunset = sunset;
-  locationName.textContent = name;
-  resultsEl.classList.remove("hidden");
-  hideStatus();
-  resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    selectSuggestion(s) {
+      this.searchQuery = s.fullName;
+      this.closeSuggestions();
+      this.startWithLocation(s.lat, s.lon, s.fullName, s.timezone, null, null, true);
+    },
 
-  if (!currentSunrise || !currentSunset) {
-    (async () => {
+    closeSuggestions() {
+      this.suggestionsVisible = false;
+      this.focusedIndex = -1;
+    },
+
+    // Location Actions
+    async useMyLocation() {
+      if (!navigator.geolocation) {
+        this.showStatus("Geolocation not supported.");
+        return;
+      }
+      this.locateLoading = true;
+      this.showStatus("Getting your location...");
       try {
-        const info = await reverseGeocode(lat, lon);
-        currentSunrise = info.sunrise;
-        currentSunset = info.sunset;
-      } catch (err) {
-        console.warn("Could not fetch sunrise/sunset:", err);
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const info = await this.reverseGeocode(lat, lon);
+        this.startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
+      } catch {
+        this.showStatus("Location denied. Please enter coordinates manually.");
+      } finally {
+        this.locateLoading = false;
       }
-    })();
-  }
+    },
 
-  // Update map if it exists
-  if (map) {
-    if (recenterMap) {
-      map.setView([lat, lon], 6);
-    }
-    updateMapMarker(lat, lon, name);
-  }
+    async goToCoords() {
+      const lat = parseFloat(this.latValue);
+      const lon = parseFloat(this.lonValue);
+      if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        this.showStatus("Enter valid latitude (-90 to 90) and longitude (-180 to 180).");
+        return;
+      }
+      this.coordsLoading = true;
+      this.showStatus("Looking up location...");
+      try {
+        const info = await this.reverseGeocode(lat, lon);
+        this.startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
+      } finally {
+        this.coordsLoading = false;
+      }
+    },
 
-  if (tickInterval) clearInterval(tickInterval);
-  updateAll();
-  tickInterval = setInterval(updateAll, 1000);
-}
+    toggleMap() {
+      if (!this.mapVisible) {
+        this.mapVisible = true;
+        this.coordsVisible = false;
+      } else {
+        this.mapVisible = false;
+      }
+    },
 
-// ---------------- TIME LOGIC ----------------
-function updateAll() {
-  const now = new Date();
-  const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+    toggleCoords() {
+      if (!this.coordsVisible) {
+        this.coordsVisible = true;
+        this.mapVisible = false;
+      } else {
+        this.coordsVisible = false;
+      }
+    },
 
-  const dayOfYear = Math.floor((now - new Date(Date.UTC(now.getUTCFullYear(), 0, 0))) / 86400000);
-  const B = ((dayOfYear - 81) * 2 * Math.PI) / 365;
-  const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    // API
+    async reverseGeocode(lat, lon) {
+      const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+      const cached = this.getCached(this.cache.geocode, cacheKey, 10 * 60 * 1000);
+      if (cached) return cached;
+      try {
+        let placeName = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+        try {
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          const nom = await nomRes.json();
+          if (nom && nom.display_name) {
+            const a = nom.address || {};
+            const place = a.city || a.town || a.village || a.county || a.state || nom.display_name.split(",")[0];
+            const country = a.country || "";
+            placeName = country ? `${place}, ${country}` : place;
+          }
+        } catch (nomErr) {
+          console.warn("Nominatim reverse geocode failed:", nomErr);
+        }
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1&daily=sunrise,sunset`
+        );
+        const data = await res.json();
+        const tz = data.timezone || "UTC";
+        const daily = data.daily || {};
+        const result = {
+          name: placeName,
+          timezone: tz,
+          sunrise: daily.sunrise ? daily.sunrise[0] : null,
+          sunset: daily.sunset ? daily.sunset[0] : null,
+        };
+        this.setCache(this.cache.geocode, cacheKey, result);
+        return result;
+      } catch (err) {
+        console.warn("Reverse geocode failed:", err);
+        const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC", sunrise: null, sunset: null };
+        this.setCache(this.cache.geocode, cacheKey, fallback);
+        return fallback;
+      }
+    },
 
-  const meanHours = (utcHours + currentLon / 15 + 24) % 24;
-  const trueHours = (meanHours + EoT / 60 + 24) % 24;
+    // Core
+    startWithLocation(lat, lon, name, timezone, sunrise, sunset, recenterMap) {
+      this.currentLat = lat;
+      this.currentLon = lon;
+      this.currentTimezone = timezone || "UTC";
+      this.currentSunrise = sunrise;
+      this.currentSunset = sunset;
+      this.locationName = name;
+      this.resultsVisible = true;
+      this.hideStatus();
+      this.$nextTick(() => {
+        document.querySelector(".results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
 
-  meanTimeEl.textContent = formatTime(meanHours);
-  solarTimeEl.textContent = formatTime(trueHours);
+      if (!this.currentSunrise || !this.currentSunset) {
+        this.reverseGeocode(lat, lon)
+          .then((info) => {
+            this.currentSunrise = info.sunrise;
+            this.currentSunset = info.sunset;
+          })
+          .catch((err) => console.warn("Could not fetch sunrise/sunset:", err));
+      }
 
-  // Update sunrise/sunset display
-  if (currentSunrise) {
-    try {
-      const sr = new Date(currentSunrise);
-      sunriseTimeEl.textContent = formatTimeFromMinutes(sr.getHours() + sr.getMinutes() / 60);
-      sunriseLabel.textContent = formatTimeFromMinutes(sr.getHours() + sr.getMinutes() / 60);
-    } catch (e) {
-      sunriseTimeEl.textContent = "--:--";
-      sunriseLabel.textContent = "--:--";
-    }
-  } else {
-    sunriseTimeEl.textContent = "--:--";
-    sunriseLabel.textContent = "--:--";
-  }
-  if (currentSunset) {
-    try {
-      const ss = new Date(currentSunset);
-      sunsetTimeEl.textContent = formatTimeFromMinutes(ss.getHours() + ss.getMinutes() / 60);
-      sunsetLabel.textContent = formatTimeFromMinutes(ss.getHours() + ss.getMinutes() / 60);
-    } catch (e) {
-      sunsetTimeEl.textContent = "--:--";
-      sunsetLabel.textContent = "--:--";
-    }
-  } else {
-    sunsetTimeEl.textContent = "--:--";
-    sunsetLabel.textContent = "--:--";
-  }
+      if (map) {
+        if (recenterMap) map.setView([lat, lon], 6);
+        this.updateMapMarker(lat, lon, name);
+      }
 
-  if (Math.abs(trueHours - 12) < 0.01) {
-    solarLabel.textContent = "☀ Solar noon!";
-  } else if (currentSunrise && currentSunset) {
-    const srHours = new Date(currentSunrise).getHours() + new Date(currentSunrise).getMinutes() / 60;
-    const ssHours = new Date(currentSunset).getHours() + new Date(currentSunset).getMinutes() / 60;
-    if (trueHours < srHours || trueHours > ssHours) {
-      solarLabel.textContent = "🌙 Night time";
-    } else {
-      solarLabel.textContent = "Real time by the sun";
-    }
-  } else if (trueHours < 6 || trueHours > 20) {
-    solarLabel.textContent = "🌙 Night time";
-  } else {
-    solarLabel.textContent = "Real time by the sun";
-  }
+      if (this.tickInterval) clearInterval(this.tickInterval);
+      this.updateAll();
+      this.tickInterval = setInterval(() => this.updateAll(), 1000);
+    },
 
-  const t = trueHours / 24;
-  const x = (1 - t) * (1 - t) * 20 + 2 * (1 - t) * t * 150 + t * t * 280;
-  const y = (1 - t) * (1 - t) * 90 + 2 * (1 - t) * t * -30 + t * t * 90;
-  sunDot.setAttribute("cx", x);
-  sunDot.setAttribute("cy", y);
+    updateAll() {
+      const now = new Date();
+      const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+      const dayOfYear = Math.floor((now - new Date(Date.UTC(now.getUTCFullYear(), 0, 0))) / 86400000);
+      const B = ((dayOfYear - 81) * 2 * Math.PI) / 365;
+      const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+      const meanHours = (utcHours + this.currentLon / 15 + 24) % 24;
+      const trueHours = (meanHours + EoT / 60 + 24) % 24;
 
-  try {
-    const tzFormatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: currentTimezone,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-    officialTimeEl.textContent = tzFormatter.format(now);
-    tzNameEl.textContent = currentTimezone;
-  } catch (tzErr) {
-    console.warn("Timezone formatting failed:", tzErr);
-    officialTimeEl.textContent = "--:--:--";
-    tzNameEl.textContent = "Unknown";
-  }
+      this.meanTime = this.formatTime(meanHours);
+      this.solarTime = this.formatTime(trueHours);
 
-  utcTimeEl.textContent = now.toISOString().slice(11, 19);
+      if (this.currentSunrise) {
+        try {
+          const sr = new Date(this.currentSunrise);
+          this.sunriseLabel = this.formatTimeFromMinutes(sr.getHours() + sr.getMinutes() / 60);
+        } catch {
+          this.sunriseLabel = "--:--";
+        }
+      } else {
+        this.sunriseLabel = "--:--";
+      }
 
-  try {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone: currentTimezone,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).formatToParts(now);
-    const hh = parseInt(parts.find((p) => p.type === "hour").value);
-    const mm = parseInt(parts.find((p) => p.type === "minute").value);
-    const ss = parseInt(parts.find((p) => p.type === "second").value);
-    const officialHours = hh + mm / 60 + ss / 3600;
+      if (this.currentSunset) {
+        try {
+          const ss = new Date(this.currentSunset);
+          this.sunsetLabel = this.formatTimeFromMinutes(ss.getHours() + ss.getMinutes() / 60);
+        } catch {
+          this.sunsetLabel = "--:--";
+        }
+      } else {
+        this.sunsetLabel = "--:--";
+      }
 
-    let diff = trueHours - officialHours;
-    if (diff > 12) diff -= 24;
-    if (diff < -12) diff += 24;
-    const absDiff = Math.abs(diff);
-    const diffMin = Math.round(absDiff * 60);
-    const sign = diff >= 0 ? "ahead of" : "behind";
-    let diffDisplay;
-    if (diffMin >= 60) {
-      const hrs = Math.floor(diffMin / 60);
-      const mins = diffMin % 60;
-      diffDisplay = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
-    } else {
-      diffDisplay = `${diffMin}m`;
-    }
-    diffBadge.textContent = diffDisplay;
-    diffBadge.className = "diff-badge " + (diff >= 0 ? "diff-ahead" : "diff-behind");
-    diffText.textContent = `Solar time is ${diffDisplay} ${sign} the official clock.`;
-    const needlePos = 50 + (diff / 120) * 50;
-    diffBar.style.left = Math.max(2, Math.min(98, needlePos)) + "%";
-  } catch (diffErr) {
-    console.warn("Diff calculation failed:", diffErr);
-    diffBadge.textContent = "—";
-    diffBadge.className = "diff-badge";
-    diffText.textContent = "—";
-  }
-}
+      if (Math.abs(trueHours - 12) < 0.01) {
+        this.solarLabel = "☀ Solar noon!";
+      } else if (this.currentSunrise && this.currentSunset) {
+        const srH = new Date(this.currentSunrise).getHours() + new Date(this.currentSunrise).getMinutes() / 60;
+        const ssH = new Date(this.currentSunset).getHours() + new Date(this.currentSunset).getMinutes() / 60;
+        this.solarLabel = trueHours < srH || trueHours > ssH ? "🌙 Night time" : "Real time by the sun";
+      } else if (trueHours < 6 || trueHours > 20) {
+        this.solarLabel = "🌙 Night time";
+      } else {
+        this.solarLabel = "Real time by the sun";
+      }
 
-function formatTime(hours) {
-  const h = Math.floor(hours);
-  const m = Math.floor((hours - h) * 60);
-  const s = Math.floor(((hours - h) * 60 - m) * 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+      const t = trueHours / 24;
+      this.sunDotX = (1 - t) * (1 - t) * 20 + 2 * (1 - t) * t * 150 + t * t * 280;
+      this.sunDotY = (1 - t) * (1 - t) * 90 + 2 * (1 - t) * t * -30 + t * t * 90;
 
-function formatTimeFromMinutes(hours) {
-  const h = Math.floor(hours);
-  const m = Math.floor((hours - h) * 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      try {
+        const tzFormatter = new Intl.DateTimeFormat("en-GB", {
+          timeZone: this.currentTimezone,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        });
+        this.officialTime = tzFormatter.format(now);
+        this.tzName = this.currentTimezone;
+      } catch {
+        this.officialTime = "--:--:--";
+        this.tzName = "Unknown";
+      }
+
+      this.utcTime = now.toISOString().slice(11, 19);
+
+      try {
+        const parts = new Intl.DateTimeFormat("en-GB", {
+          timeZone: this.currentTimezone,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        }).formatToParts(now);
+        const hh = parseInt(parts.find((p) => p.type === "hour").value);
+        const mm = parseInt(parts.find((p) => p.type === "minute").value);
+        const ss = parseInt(parts.find((p) => p.type === "second").value);
+        const officialHours = hh + mm / 60 + ss / 3600;
+
+        let diff = trueHours - officialHours;
+        if (diff > 12) diff -= 24;
+        if (diff < -12) diff += 24;
+        const diffMin = Math.round(Math.abs(diff) * 60);
+        const sign = diff >= 0 ? "ahead of" : "behind";
+        let diffDisplay;
+        if (diffMin >= 60) {
+          const hrs = Math.floor(diffMin / 60);
+          const mins = diffMin % 60;
+          diffDisplay = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+        } else {
+          diffDisplay = `${diffMin}m`;
+        }
+        this.diffBadge = diffDisplay;
+        this.diffAhead = diff >= 0;
+        this.diffDirection = sign;
+        const needlePos = 50 + (diff / 120) * 50;
+        this.diffBarLeft = Math.max(2, Math.min(98, needlePos)) + "%";
+      } catch {
+        this.diffBadge = "—";
+        this.diffAhead = true;
+        this.diffDirection = "behind";
+      }
+    },
+
+    formatTime(hours) {
+      const h = Math.floor(hours);
+      const m = Math.floor((hours - h) * 60);
+      const s = Math.floor(((hours - h) * 60 - m) * 60);
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    },
+
+    formatTimeFromMinutes(hours) {
+      const h = Math.floor(hours);
+      const m = Math.floor((hours - h) * 60);
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    },
+  };
 }

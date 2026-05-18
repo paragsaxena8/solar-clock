@@ -5,16 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Real Solar Time</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/open-props" />
+<link rel="stylesheet" href="https://unpkg.com/open-props/normalize.min.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='translate(32,32)'%3E%3Ccircle r='12' fill='%23d4af37'/%3E%3Cg stroke='%23f0d878' stroke-width='3' stroke-linecap='round'%3E%3Cline y1='-28' y2='-20'/%3E%3Cline y1='20' y2='28'/%3E%3Cline x1='-28' x2='-20'/%3E%3Cline x1='20' x2='28'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="./style.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
 </head>
 <body>
 <div class="stars"></div>
 
-<div class="container">
+<div class="container" x-data="solarClock()">
   <header class="header">
     <div class="logo">
       <svg class="sun-logo" viewBox="0 0 64 64" width="64" height="64">
@@ -38,25 +41,76 @@
   </header>
 
   <section class="controls">
-    <div class="search-wrapper">
+    <div class="search-wrapper" @click.outside="closeSuggestions()">
       <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20">
         <circle cx="11" cy="11" r="7" fill="none" stroke="#8a8675" stroke-width="2"/>
         <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="#8a8675" stroke-width="2" stroke-linecap="round"/>
       </svg>
-      <input id="searchInput" type="text" placeholder="Search city or country..." autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-activedescendant="" aria-owns="suggestions" />
-      <div id="suggestions" class="suggestions" role="listbox" aria-label="Location suggestions"></div>
+      <input
+        id="searchInput"
+        x-model="searchQuery"
+        @input.debounce.250ms="fetchSuggestions()"
+        @keydown="handleSearchKeydown($event)"
+        type="text"
+        placeholder="Search city or country..."
+        autocomplete="off"
+        role="combobox"
+        :aria-expanded="suggestionsVisible"
+        aria-autocomplete="list"
+        :aria-activedescendant="focusedIndex >= 0 ? 'suggestion-' + focusedIndex : ''"
+        aria-owns="suggestions"
+      />
+      <div
+        id="suggestions"
+        class="suggestions"
+        :class="{ 'active': suggestionsVisible }"
+        role="listbox"
+        aria-label="Location suggestions"
+      >
+        <template x-for="(s, i) in suggestions" :key="i">
+          <div
+            class="suggestion-item"
+            :class="{ 'suggestion-focused': focusedIndex === i }"
+            :id="'suggestion-' + i"
+            role="option"
+            :aria-selected="focusedIndex === i ? 'true' : 'false'"
+            @click="selectSuggestion(s)"
+          >
+            <span class="suggestion-flag" x-text="s.flag"></span>
+            <div class="suggestion-text">
+              <div class="suggestion-name" x-text="s.name"></div>
+              <div class="suggestion-meta" x-text="s.meta"></div>
+            </div>
+          </div>
+        </template>
+        <div x-show="suggestionsVisible && suggestions.length === 0" class="suggestion-item">
+          <span class="suggestion-text">No results found</span>
+        </div>
+      </div>
     </div>
 
     <div class="controls-alt">
       <span class="controls-alt-label">Or try</span>
-      <button id="locateBtn" class="btn btn-option" aria-label="Use my current location">
+      <button
+        @click="useMyLocation()"
+        :disabled="locateLoading"
+        :class="locateLoading && 'btn-loading'"
+        class="btn btn-option"
+        aria-label="Use my current location"
+      >
         <svg viewBox="0 0 24 24" width="16" height="16">
           <path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z" fill="none" stroke="currentColor" stroke-width="2"/>
           <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
         </svg>
         My Location
       </button>
-      <button id="toggleMapBtn" class="btn btn-option" aria-label="Toggle map visibility" aria-expanded="false">
+      <button
+        @click="toggleMap()"
+        :class="{ 'active': mapVisible }"
+        class="btn btn-option"
+        :aria-expanded="mapVisible"
+        aria-label="Toggle map visibility"
+      >
         <svg viewBox="0 0 24 24" width="16" height="16">
           <polygon points="3,6 9,3 15,6 21,3 21,18 15,21 9,18 3,21" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
           <line x1="9" y1="3" x2="9" y2="18" stroke="currentColor" stroke-width="2"/>
@@ -64,7 +118,12 @@
         </svg>
         Map
       </button>
-      <button id="coordsToggle" class="btn btn-option" aria-label="Enter coordinates manually">
+      <button
+        @click="toggleCoords()"
+        :class="{ 'active': coordsVisible }"
+        class="btn btn-option"
+        aria-label="Enter coordinates manually"
+      >
         <svg viewBox="0 0 24 24" width="16" height="16">
           <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
           <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.5"/>
@@ -74,56 +133,44 @@
       </button>
     </div>
 
-    <div id="coordsSection" class="coords-section hidden">
-      <input id="latInput" type="number" step="any" placeholder="Latitude" aria-label="Latitude" />
-      <input id="lonInput" type="number" step="any" placeholder="Longitude" aria-label="Longitude" />
-      <button id="manualBtn" class="btn btn-secondary">Go</button>
+    <div x-show="coordsVisible" x-transition class="coords-section">
+      <input x-model.number="latValue" type="number" step="any" placeholder="Latitude" aria-label="Latitude" />
+      <input x-model.number="lonValue" type="number" step="any" placeholder="Longitude" aria-label="Longitude" />
+      <button @click="goToCoords()" :disabled="coordsLoading" :class="coordsLoading && 'btn-loading'" class="btn btn-secondary">Go</button>
     </div>
   </section>
 
-  <div id="status" class="status"></div>
+  <div x-show="statusVisible" x-transition x-text="statusMsg" class="status"></div>
 
-  <section id="mapSection" class="map-section hidden">
+  <section x-show="mapVisible" x-transition class="map-section">
     <div class="map-header">
       <div>
         <h3>Pick a location on the map</h3>
         <p class="map-hint">Click anywhere on the map to set your location</p>
       </div>
       <div class="map-style-switch">
-        <button class="map-style-btn active" data-style="streets">Streets</button>
-        <button class="map-style-btn" data-style="satellite">Satellite</button>
-        <button class="map-style-btn" data-style="terrain">Terrain</button>
-        <button class="map-style-btn" data-style="dark">Dark</button>
+        <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'streets' }" @click="setMapStyle('streets')">Streets</button>
+        <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'satellite' }" @click="setMapStyle('satellite')">Satellite</button>
+        <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'terrain' }" @click="setMapStyle('terrain')">Terrain</button>
+        <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'dark' }" @click="setMapStyle('dark')">Dark</button>
       </div>
     </div>
     <div id="map"></div>
   </section>
 
-  <section id="results" class="results hidden">
-    <div class="location-display">
-      <svg viewBox="0 0 24 24" width="24" height="24" class="pin-icon">
-        <path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z" fill="#e05252" stroke="#e05252" stroke-width="1"/>
-        <circle cx="12" cy="9" r="2.5" fill="white"/>
-      </svg>
-      <span id="locationName">—</span>
-    </div>
-
-    <div class="bento">
-      <div class="card card-highlight card-solar">
-        <div class="card-head">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <circle cx="12" cy="12" r="5" fill="#d4af37"/>
-            <g stroke="#f0d878" stroke-width="2" stroke-linecap="round">
-              <line x1="12" y1="2" x2="12" y2="5"/>
-              <line x1="12" y1="19" x2="12" y2="22"/>
-              <line x1="2" y1="12" x2="5" y2="12"/>
-              <line x1="19" y1="12" x2="22" y2="12"/>
-            </g>
-          </svg>
-          <h3>True Solar Time</h3>
+  <section x-show="resultsVisible" x-transition class="results">
+    <div class="dashboard">
+      <div class="card card-solar">
+        <div class="solar-hero">
+          <div class="solar-hero-left">
+            <div class="solar-label-row">
+              <span class="solar-label-text">TRUE SOLAR TIME</span>
+              <span x-text="locationName" class="solar-location"></span>
+            </div>
+            <div x-text="solarTime" class="time-big time-hero"></div>
+            <div x-text="solarLabel" class="card-sub"></div>
+          </div>
         </div>
-        <div id="solarTime" class="time-big time-hero">--:--:--</div>
-        <div id="solarLabel" class="card-sub">Real time by the sun</div>
         <svg class="sun-arc" viewBox="0 0 300 100" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -134,84 +181,50 @@
           </defs>
           <path d="M 20 90 Q 150 -30 280 90" fill="none" stroke="url(#arcGrad)" stroke-width="2"/>
           <line x1="20" y1="90" x2="280" y2="90" stroke="rgba(138,134,117,0.2)" stroke-width="1"/>
-          <text id="sunriseLabel" x="10" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif">--:--</text>
-          <text id="sunsetLabel" x="265" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif">--:--</text>
-          <circle id="sunDot" cx="150" cy="20" r="8" fill="#d4af37"/>
+          <text x="10" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif" x-text="sunriseLabel"></text>
+          <text x="265" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif" x-text="sunsetLabel"></text>
+          <circle :cx="sunDotX" :cy="sunDotY" r="8" fill="#d4af37"/>
         </svg>
       </div>
 
-      <div class="card">
-        <div class="card-head">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <circle cx="12" cy="12" r="9" fill="none" stroke="#7c8cff" stroke-width="2"/>
-            <polyline points="12,7 12,12 15,14" fill="none" stroke="#7c8cff" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <h3>Mean Solar Time</h3>
+      <div class="time-cards">
+        <div class="card card-mean">
+          <div class="card-label card-label-mean">MEAN</div>
+          <div x-text="meanTime" class="time-big time-card-value"></div>
+          <div class="card-sub">Based on longitude only</div>
         </div>
-        <div id="meanTime" class="time-big">--:--:--</div>
-        <div class="card-sub">Based on longitude only</div>
-      </div>
 
-      <div class="card">
-        <div class="card-head">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="#7affc8" stroke-width="2"/>
-            <line x1="3" y1="9" x2="21" y2="9" stroke="#7affc8" stroke-width="2"/>
-          </svg>
-          <h3>Official Timezone</h3>
+        <div class="card card-tz">
+          <div class="card-label card-label-tz">TIMEZONE</div>
+          <div x-text="officialTime" class="time-big time-card-value"></div>
+          <div x-text="tzName" class="card-sub"></div>
         </div>
-        <div id="officialTime" class="time-big">--:--:--</div>
-        <div id="tzName" class="card-sub">—</div>
-      </div>
 
-      <div class="card">
-        <div class="card-head">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <circle cx="12" cy="12" r="9" fill="none" stroke="#c89aff" stroke-width="2"/>
-            <path d="M3 12h18 M12 3a14 14 0 010 18 M12 3a14 14 0 000 18" fill="none" stroke="#c89aff" stroke-width="1.5"/>
-          </svg>
-          <h3>UTC</h3>
+        <div class="card card-utc">
+          <div class="card-label card-label-utc">UTC</div>
+          <div x-text="utcTime" class="time-big time-card-value"></div>
+          <div class="card-sub">Global reference</div>
         </div>
-        <div id="utcTime" class="time-big">--:--:--</div>
-        <div class="card-sub">Global reference</div>
       </div>
-    </div>
 
-    <div class="sun-schedule">
-      <div class="sun-event">
-        <span class="sun-event-icon">&#9788;</span>
-        <span class="sun-event-label">Sunrise</span>
-        <span id="sunriseTime" class="sun-event-time">--:--</span>
-      </div>
-      <div class="sun-arc-mini">
-        <svg viewBox="0 0 200 60" preserveAspectRatio="xMidYMid meet">
-          <path d="M 10 50 Q 100 -10 190 50" fill="none" stroke="rgba(212,175,55,0.2)" stroke-width="1.5"/>
-          <line x1="10" y1="50" x2="190" y2="50" stroke="rgba(138,134,117,0.3)" stroke-width="1"/>
-          <circle id="sunDotMini" cx="100" cy="15" r="5" fill="#d4af37"/>
-        </svg>
-      </div>
-      <div class="sun-event">
-        <span class="sun-event-icon">&#9788;</span>
-        <span class="sun-event-label">Sunset</span>
-        <span id="sunsetTime" class="sun-event-time">--:--</span>
-      </div>
-    </div>
-
-    <div class="diff-section">
-      <h4>Solar vs Official Time Difference</h4>
-      <div class="diff-bar-wrap">
-        <div id="diffBar" class="diff-bar"></div>
-      </div>
-      <div class="diff-info">
-        <span id="diffBadge" class="diff-badge">—</span>
-        <span id="diffText" class="diff-text">—</span>
+      <div class="diff-section">
+        <h4>Solar vs Official Time Difference</h4>
+        <div class="diff-bar-wrap">
+          <div class="diff-bar" :style="{ left: diffBarLeft }"></div>
+        </div>
+        <div class="diff-info">
+          <span class="diff-text">Solar time is
+            <span x-text="diffBadge" class="diff-badge" :class="diffAhead ? 'diff-ahead' : 'diff-behind'"></span>
+            <span x-text="diffDirection"></span> the official clock.
+          </span>
+        </div>
       </div>
     </div>
   </section>
 
   <footer class="footer">
-    <p>Map by OpenStreetMap contributors · Geocoding by Open-Meteo · Solar calculations based on Equation of Time</p>
-    <p class="footer-credit">Designed with ❤ by Parag & AI</p>
+    <p>Map by OpenStreetMap contributors &middot; Geocoding by Open-Meteo &middot; Solar calculations based on Equation of Time</p>
+    <p class="footer-credit">Designed with &#10084; by Parag & AI</p>
   </footer>
 </div>
 

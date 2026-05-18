@@ -1,0 +1,8 @@
+# Claude Code
+.claude/
+
+# Superpowers plugin cache
+.superpowers/
+
+# Superpowers generated docs
+docs/superpowers/
