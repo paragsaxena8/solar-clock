@@ -117,9 +117,9 @@ function updateMapMarker(lat, lon, popupText) {
       className: "sun-marker",
       html: `<div style="
         width:28px;height:28px;border-radius:50%;
-        background:radial-gradient(circle,#fff7cc,#ffb800 60%,#ff8a3d);
-        box-shadow:0 0 18px rgba(255,184,0,0.9),0 0 6px rgba(255,255,255,0.8);
-        border:2px solid #fff;
+        background:radial-gradient(circle,#f0d878,#d4af37 60%,#c48a3f);
+        box-shadow:0 0 18px rgba(212,175,55,0.9),0 0 6px rgba(232,228,217,0.8);
+        border:2px solid #e8e4d9;
         transform:translate(-50%,-50%);
       "></div>`,
       iconSize: [28, 28],
