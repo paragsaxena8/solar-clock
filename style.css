@@ -769,6 +769,13 @@ body {
   font-size: 0.85rem;
 }
 
+.footer-credit {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
 @media (max-width: 600px) {
   .header h1 {
     font-size: 1.6rem;
