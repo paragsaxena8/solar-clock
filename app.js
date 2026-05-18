@@ -26,10 +26,18 @@ const tileStyles = {
   },
 };
 
+// Countries that mandate a single national timezone overriding IANA geographical zones.
+// IANA returns geographical zones (e.g. Asia/Urumqi for Xinjiang), but these countries
+// legally enforce one timezone nationwide. Source: government timekeeping regulations.
+const NATIONAL_TIMEZONES = {
+  CN: "Asia/Shanghai",   // China: Beijing Time (UTC+8) nationwide
+};
+
 function solarClock() {
   return {
     // UI State
     searchQuery: "",
+    storyOpen: false,
     suggestions: [],
     suggestionsVisible: false,
     focusedIndex: -1,
@@ -44,12 +52,15 @@ function solarClock() {
 
     // Display Data
     locationName: "—",
-    solarTime: "--:--:--",
+    locationCity: "—",
+    locationCountry: "",
+    solarTime: "--:-- --",
     solarLabel: "Real time by the sun",
-    meanTime: "--:--:--",
-    officialTime: "--:--:--",
+    meanTime: "--:-- --",
+    officialTime: "--:-- --",
     tzName: "—",
-    utcTime: "--:--:--",
+    tzOffset: "",
+    utcTime: "--:-- --",
     diffBadge: "—",
     diffAhead: true,
     diffDirection: "behind",
@@ -110,7 +121,7 @@ function solarClock() {
         const { lat, lng } = e.latlng;
         this.showStatus("Looking up location...");
         const info = await this.reverseGeocode(lat, lng);
-        this.startWithLocation(lat, lng, info.name, info.timezone, info.sunrise, info.sunset, false);
+        this.startWithLocation(lat, lng, info.name, info.timezone, info.sunrise, info.sunset, false, info.countryCode);
       });
     },
 
@@ -195,6 +206,7 @@ function solarClock() {
             lat: r.latitude,
             lon: r.longitude,
             timezone: r.timezone || "",
+            countryCode: r.country_code || "",
             name: r.name,
             flag: this.countryCodeToFlag(r.country_code),
             meta: (r.admin1 ? r.admin1 + ", " : "") + r.country,
@@ -230,12 +242,23 @@ function solarClock() {
     selectSuggestion(s) {
       this.searchQuery = s.fullName;
       this.closeSuggestions();
-      this.startWithLocation(s.lat, s.lon, s.fullName, s.timezone, null, null, true);
+      this.startWithLocation(s.lat, s.lon, s.fullName, s.timezone, null, null, true, s.countryCode);
     },
 
     closeSuggestions() {
       this.suggestionsVisible = false;
       this.focusedIndex = -1;
+    },
+
+    async goToQuickPick(name, lat, lon, countryCode) {
+      this.showStatus(`Looking up ${name}...`);
+      try {
+        const info = await this.reverseGeocode(lat, lon);
+        this.searchQuery = name;
+        this.startWithLocation(lat, lon, name, info.timezone, info.sunrise, info.sunset, true, countryCode || info.countryCode);
+      } catch {
+        this.startWithLocation(lat, lon, name, "UTC", null, null, true, countryCode);
+      }
     },
 
     // Location Actions
@@ -253,7 +276,7 @@ function solarClock() {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
         const info = await this.reverseGeocode(lat, lon);
-        this.startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
+        this.startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true, info.countryCode);
       } catch {
         this.showStatus("Location denied. Please enter coordinates manually.");
       } finally {
@@ -272,7 +295,7 @@ function solarClock() {
       this.showStatus("Looking up location...");
       try {
         const info = await this.reverseGeocode(lat, lon);
-        this.startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true);
+        this.startWithLocation(lat, lon, info.name, info.timezone, info.sunrise, info.sunset, true, info.countryCode);
       } finally {
         this.coordsLoading = false;
       }
@@ -303,6 +326,7 @@ function solarClock() {
       if (cached) return cached;
       try {
         let placeName = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+        let countryCode = "";
         try {
           const nomRes = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
@@ -313,6 +337,7 @@ function solarClock() {
             const a = nom.address || {};
             const place = a.city || a.town || a.village || a.county || a.state || nom.display_name.split(",")[0];
             const country = a.country || "";
+            countryCode = (a.country_code || "").toUpperCase();
             placeName = country ? `${place}, ${country}` : place;
           }
         } catch (nomErr) {
@@ -322,11 +347,12 @@ function solarClock() {
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1&daily=sunrise,sunset`
         );
         const data = await res.json();
-        const tz = data.timezone || "UTC";
+        const tz = this.resolveTimezone(data.timezone || "UTC", countryCode);
         const daily = data.daily || {};
         const result = {
           name: placeName,
           timezone: tz,
+          countryCode,
           sunrise: daily.sunrise ? daily.sunrise[0] : null,
           sunset: daily.sunset ? daily.sunset[0] : null,
         };
@@ -334,20 +360,29 @@ function solarClock() {
         return result;
       } catch (err) {
         console.warn("Reverse geocode failed:", err);
-        const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC", sunrise: null, sunset: null };
+        const fallback = { name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`, timezone: "UTC", countryCode: "", sunrise: null, sunset: null };
         this.setCache(this.cache.geocode, cacheKey, fallback);
         return fallback;
       }
     },
 
+    // Resolve timezone: countries with a mandated national timezone override IANA's geographical zones.
+    resolveTimezone(tz, countryCode) {
+      if (countryCode && NATIONAL_TIMEZONES[countryCode]) return NATIONAL_TIMEZONES[countryCode];
+      return tz;
+    },
+
     // Core
-    startWithLocation(lat, lon, name, timezone, sunrise, sunset, recenterMap) {
+    startWithLocation(lat, lon, name, timezone, sunrise, sunset, recenterMap, countryCode) {
       this.currentLat = lat;
       this.currentLon = lon;
-      this.currentTimezone = timezone || "UTC";
+      this.currentTimezone = this.resolveTimezone(timezone || "UTC", countryCode);
       this.currentSunrise = sunrise;
       this.currentSunset = sunset;
       this.locationName = name;
+      const parts = name.split(", ");
+      this.locationCity = parts[0] || name;
+      this.locationCountry = parts.length > 1 ? ", " + parts.slice(1).join(", ") : "";
       this.resultsVisible = true;
       this.hideStatus();
       this.$nextTick(() => {
@@ -388,7 +423,8 @@ function solarClock() {
       if (this.currentSunrise) {
         try {
           const sr = new Date(this.currentSunrise);
-          this.sunriseLabel = this.formatTimeFromMinutes(sr.getHours() + sr.getMinutes() / 60);
+          const srH = sr.getUTCHours() + sr.getUTCMinutes() / 60;
+          this.sunriseLabel = this.formatTimeFromMinutes((srH + this.currentLon / 15 + 24) % 24);
         } catch {
           this.sunriseLabel = "--:--";
         }
@@ -399,7 +435,8 @@ function solarClock() {
       if (this.currentSunset) {
         try {
           const ss = new Date(this.currentSunset);
-          this.sunsetLabel = this.formatTimeFromMinutes(ss.getHours() + ss.getMinutes() / 60);
+          const ssH = ss.getUTCHours() + ss.getUTCMinutes() / 60;
+          this.sunsetLabel = this.formatTimeFromMinutes((ssH + this.currentLon / 15 + 24) % 24);
         } catch {
           this.sunsetLabel = "--:--";
         }
@@ -410,8 +447,8 @@ function solarClock() {
       if (Math.abs(trueHours - 12) < 0.01) {
         this.solarLabel = "☀ Solar noon!";
       } else if (this.currentSunrise && this.currentSunset) {
-        const srH = new Date(this.currentSunrise).getHours() + new Date(this.currentSunrise).getMinutes() / 60;
-        const ssH = new Date(this.currentSunset).getHours() + new Date(this.currentSunset).getMinutes() / 60;
+        const srH = (new Date(this.currentSunrise).getUTCHours() + new Date(this.currentSunrise).getUTCMinutes() / 60 + this.currentLon / 15 + 24) % 24;
+        const ssH = (new Date(this.currentSunset).getUTCHours() + new Date(this.currentSunset).getUTCMinutes() / 60 + this.currentLon / 15 + 24) % 24;
         this.solarLabel = trueHours < srH || trueHours > ssH ? "🌙 Night time" : "Real time by the sun";
       } else if (trueHours < 6 || trueHours > 20) {
         this.solarLabel = "🌙 Night time";
@@ -424,21 +461,42 @@ function solarClock() {
       this.sunDotY = (1 - t) * (1 - t) * 90 + 2 * (1 - t) * t * -30 + t * t * 90;
 
       try {
-        const tzFormatter = new Intl.DateTimeFormat("en-GB", {
+        const tzFormatter = new Intl.DateTimeFormat("en-US", {
           timeZone: this.currentTimezone,
-          hour: "2-digit",
+          hour: "numeric",
           minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
+          hour12: true,
         });
         this.officialTime = tzFormatter.format(now);
         this.tzName = this.currentTimezone;
       } catch {
-        this.officialTime = "--:--:--";
+        this.officialTime = "--:-- --";
         this.tzName = "Unknown";
       }
 
-      this.utcTime = now.toISOString().slice(11, 19);
+      // Calculate UTC offset for display (e.g. "UTC+5:30")
+      try {
+        const utcDate = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
+        const tzDate = new Date(now.toLocaleString("en-US", { timeZone: this.currentTimezone }));
+        const diffMs = tzDate - utcDate;
+        const diffMin = Math.round(diffMs / 60000);
+        const sign = diffMin >= 0 ? "+" : "-";
+        const absMin = Math.abs(diffMin);
+        const offH = Math.floor(absMin / 60);
+        const offM = absMin % 60;
+        this.tzOffset = `UTC${sign}${offH}${offM > 0 ? ":" + String(offM).padStart(2, "0") : ""}`;
+      } catch {
+        this.tzOffset = "";
+      }
+
+      // UTC time in 12-hour format
+      {
+        const uh = now.getUTCHours();
+        const um = now.getUTCMinutes();
+        const period = uh >= 12 ? "PM" : "AM";
+        const h12 = uh % 12 || 12;
+        this.utcTime = `${h12}:${String(um).padStart(2, "0")} ${period}`;
+      }
 
       try {
         const parts = new Intl.DateTimeFormat("en-GB", {
@@ -479,16 +537,54 @@ function solarClock() {
     },
 
     formatTime(hours) {
-      const h = Math.floor(hours);
-      const m = Math.floor((hours - h) * 60);
-      const s = Math.floor(((hours - h) * 60 - m) * 60);
-      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      hours = ((hours % 24) + 24) % 24;
+      const totalSeconds = Math.round(hours * 3600);
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const period = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return `${h12}:${String(m).padStart(2, "0")} ${period}`;
     },
 
     formatTimeFromMinutes(hours) {
-      const h = Math.floor(hours);
-      const m = Math.floor((hours - h) * 60);
-      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      hours = ((hours % 24) + 24) % 24;
+      const totalSeconds = Math.round(hours * 3600);
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const period = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+    },
+
+    // Validation: call solarClock().validate() from browser console
+    validate() {
+      const tests = [
+        { name: "Greenwich, London", lon: 0.0, note: "Solar time ≈ UTC ± EoT" },
+        { name: "Mumbai, India", lon: 72.87, note: "Should be ~38min behind IST" },
+        { name: "Kashgar, China", lon: 75.98, note: "Should be ~2hr 56min behind Beijing" },
+        { name: "Galicia, Spain", lon: -8.4, note: "Should be ~1hr 13min behind CET" },
+        { name: "Kolkata, India", lon: 88.36, note: "Should be ~24min ahead of IST" },
+      ];
+      const now = new Date();
+      const utcH = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+      const doy = Math.floor((now - new Date(Date.UTC(now.getUTCFullYear(), 0, 0))) / 86400000);
+      const B = ((doy - 81) * 2 * Math.PI) / 365;
+      const eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+      const utcStr = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}:${String(now.getUTCSeconds()).padStart(2, "0")}`;
+
+      console.group("☀ Solar Time Validation");
+      console.log(`UTC now: ${utcStr} | Day of year: ${doy} | EoT: ${eot.toFixed(2)} min`);
+      console.log("---");
+      for (const t of tests) {
+        const mean = ((utcH + t.lon / 15 + 24) % 24);
+        const trueH = ((mean + eot / 60 + 24) % 24);
+        const totalSec = Math.round(trueH * 3600);
+        const hh = String(Math.floor(totalSec / 3600)).padStart(2, "0");
+        const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, "0");
+        const ss = String(totalSec % 60).padStart(2, "0");
+        console.log(`${t.name.padEnd(20)} → Solar: ${hh}:${mm}:${ss}  (${t.note})`);
+      }
+      console.groupEnd();
     },
   };
 }

@@ -9,7 +9,9 @@
       "Bash(bash \"C:\\\\Users\\\\rckng\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.1.0\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh\" --project-dir \"P:\\\\Work\\\\Projects\\\\solar-clock\")",
       "Bash(curl -s http://localhost:54036/)",
       "Bash(python -m http.server 54036)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(node -e ' *)",
+      "Bash(node *)"
     ]
   }
 }
