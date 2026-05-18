@@ -432,6 +432,7 @@ function startWithLocation(lat, lon, name, timezone, sunrise, sunset, recenterMa
   locationName.textContent = name;
   resultsEl.classList.remove("hidden");
   hideStatus();
+  resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
 
   if (!currentSunrise || !currentSunset) {
     (async () => {
