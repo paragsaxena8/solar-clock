@@ -17,7 +17,8 @@ const sunDot = document.getElementById("sunDot");
 const diffBar = document.getElementById("diffBar");
 const diffText = document.getElementById("diffText");
 const toggleMapBtn = document.getElementById("toggleMapBtn");
-const toggleMapLabel = document.getElementById("toggleMapLabel");
+const coordsToggle = document.getElementById("coordsToggle");
+const coordsSection = document.getElementById("coordsSection");
 const mapSection = document.getElementById("mapSection");
 const sunriseTimeEl = document.getElementById("sunriseTime");
 const sunsetTimeEl = document.getElementById("sunsetTime");
@@ -138,8 +139,11 @@ toggleMapBtn.addEventListener("click", () => {
   const isHidden = mapSection.classList.contains("hidden");
   if (isHidden) {
     mapSection.classList.remove("hidden");
-    toggleMapLabel.textContent = "Hide Map";
+    toggleMapBtn.classList.add("active");
     toggleMapBtn.setAttribute("aria-expanded", "true");
+    // Hide coords when showing map
+    coordsSection.classList.add("hidden");
+    coordsToggle.classList.remove("active");
     setTimeout(() => {
       initMap();
       map.invalidateSize();
@@ -150,7 +154,7 @@ toggleMapBtn.addEventListener("click", () => {
     }, 50);
   } else {
     mapSection.classList.add("hidden");
-    toggleMapLabel.textContent = "Show Map";
+    toggleMapBtn.classList.remove("active");
     toggleMapBtn.setAttribute("aria-expanded", "false");
   }
 });
@@ -161,6 +165,21 @@ document.querySelectorAll(".map-style-btn").forEach((btn) => {
     btn.classList.add("active");
     setMapStyle(btn.dataset.style);
   });
+});
+
+coordsToggle.addEventListener("click", () => {
+  const isHidden = coordsSection.classList.contains("hidden");
+  if (isHidden) {
+    coordsSection.classList.remove("hidden");
+    coordsToggle.classList.add("active");
+    // Hide map when showing coords
+    mapSection.classList.add("hidden");
+    toggleMapBtn.classList.remove("active");
+    toggleMapBtn.setAttribute("aria-expanded", "false");
+  } else {
+    coordsSection.classList.add("hidden");
+    coordsToggle.classList.remove("active");
+  }
 });
 
 // ---------------- HELPERS ----------------

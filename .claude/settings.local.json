@@ -3,7 +3,9 @@
     "allow": [
       "Skill(brainstorming)",
       "Skill(writing-plans)",
-      "Skill(superpowers:subagent-driven-development)"
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
