@@ -506,6 +506,7 @@ body {
   border: 1px solid var(--border-gold);
 }
 
+
 .sun-event {
   display: flex;
   flex-direction: column;
@@ -515,20 +516,23 @@ body {
 
 .sun-event-icon {
   font-size: 1.2rem;
+  color: var(--gold);
 }
 
 .sun-event-label {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
 }
 
 .sun-event-time {
+  font-family: var(--font-display);
   font-size: 1.3rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
+  color: var(--gold-light);
+  letter-spacing: 0.05em;
 }
 
 .sun-arc-mini {
@@ -628,7 +632,7 @@ body {
 }
 
 #sunDot {
-  filter: drop-shadow(0 0 6px rgba(212,175,55,0.8));
+  filter: drop-shadow(0 0 8px rgba(212,175,55,0.7));
   transition: cx 1s linear, cy 1s linear;
 }
 
@@ -640,31 +644,75 @@ body {
 }
 
 .diff-section h4 {
+  font-family: var(--font-body);
   font-size: 0.95rem;
   color: var(--text-secondary);
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .diff-bar-wrap {
-  height: 8px;
-  background: var(--border);
+  height: 32px;
+  background: linear-gradient(90deg,
+    var(--gold) 0%,
+    rgba(212,175,55,0.3) 25%,
+    rgba(138,134,117,0.15) 50%,
+    rgba(196,138,63,0.3) 75%,
+    var(--amber) 100%
+  );
   border-radius: 4px;
   overflow: hidden;
   position: relative;
+  border: 1px solid var(--border);
+}
+
+.diff-bar-wrap::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: var(--gold);
+  z-index: 2;
+  box-shadow: 0 0 6px rgba(212,175,55,0.5);
+}
+
+.diff-bar-wrap::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 9%,
+    rgba(232,228,217,0.06) 9%,
+    rgba(232,228,217,0.06) 10%
+  );
+  z-index: 1;
 }
 
 .diff-bar {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, var(--gold), var(--red));
-  border-radius: 4px;
-  transition: width 0.6s ease;
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+  background: var(--gold-light);
+  border-radius: 2px;
+  transition: left 0.6s ease;
+  z-index: 3;
+  box-shadow: 0 0 8px rgba(212,175,55,0.6);
 }
 
 .diff-text {
   margin-top: 12px;
   font-size: 0.95rem;
   color: var(--text-primary);
+  text-align: center;
 }
 
 .footer {

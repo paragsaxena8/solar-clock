@@ -542,8 +542,8 @@ function updateAll() {
     const diffMin = Math.round(absDiff * 60);
     const sign = diff >= 0 ? "ahead of" : "behind";
     diffText.textContent = `Solar time is ${diffMin} minute${diffMin !== 1 ? "s" : ""} ${sign} the official clock.`;
-    const pct = Math.min((absDiff / 3) * 100, 100);
-    diffBar.style.width = pct + "%";
+    const needlePos = 50 + (diff / 120) * 50;
+    diffBar.style.left = Math.max(2, Math.min(98, needlePos)) + "%";
   } catch (diffErr) {
     console.warn("Diff calculation failed:", diffErr);
     diffText.textContent = "—";
