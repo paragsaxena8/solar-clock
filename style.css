@@ -190,7 +190,7 @@ body {
   border-radius: 12px;
   max-height: 320px;
   overflow-y: auto;
-  z-index: 100;
+  z-index: 1000;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-8px);
@@ -534,11 +534,19 @@ body {
   50% { transform: translateY(-4px); }
 }
 
-.cards {
+.bento {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.card-solar {
+  grid-column: 1 / -1;
+}
+
+.time-hero {
+  font-size: 3rem;
 }
 
 .sun-schedule {
@@ -755,11 +763,45 @@ body {
   box-shadow: 0 0 8px rgba(212,175,55,0.6);
 }
 
-.diff-text {
+.diff-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   margin-top: 12px;
+}
+
+.diff-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+  background: rgba(212,175,55,0.15);
+  color: var(--gold-light);
+  border: 1px solid var(--border-gold);
+}
+
+.diff-badge.diff-ahead {
+  background: rgba(212,175,55,0.15);
+  color: var(--gold-light);
+  border-color: var(--border-gold);
+}
+
+.diff-badge.diff-behind {
+  background: rgba(196,138,63,0.15);
+  color: var(--amber);
+  border-color: rgba(196,138,63,0.25);
+}
+
+.diff-text {
   font-size: 0.95rem;
   color: var(--text-primary);
-  text-align: center;
 }
 
 .footer {
@@ -790,6 +832,12 @@ body {
   }
   .time-big {
     font-size: 1.8rem;
+  }
+  .time-hero {
+    font-size: 2.2rem;
+  }
+  .bento {
+    grid-template-columns: 1fr;
   }
   .coords-section input {
     flex: 1;

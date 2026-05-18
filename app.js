@@ -16,6 +16,7 @@ const utcTimeEl = document.getElementById("utcTime");
 const sunDot = document.getElementById("sunDot");
 const diffBar = document.getElementById("diffBar");
 const diffText = document.getElementById("diffText");
+const diffBadge = document.getElementById("diffBadge");
 const toggleMapBtn = document.getElementById("toggleMapBtn");
 const coordsToggle = document.getElementById("coordsToggle");
 const coordsSection = document.getElementById("coordsSection");
@@ -561,11 +562,23 @@ function updateAll() {
     const absDiff = Math.abs(diff);
     const diffMin = Math.round(absDiff * 60);
     const sign = diff >= 0 ? "ahead of" : "behind";
-    diffText.textContent = `Solar time is ${diffMin} minute${diffMin !== 1 ? "s" : ""} ${sign} the official clock.`;
+    let diffDisplay;
+    if (diffMin >= 60) {
+      const hrs = Math.floor(diffMin / 60);
+      const mins = diffMin % 60;
+      diffDisplay = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+    } else {
+      diffDisplay = `${diffMin}m`;
+    }
+    diffBadge.textContent = diffDisplay;
+    diffBadge.className = "diff-badge " + (diff >= 0 ? "diff-ahead" : "diff-behind");
+    diffText.textContent = `Solar time is ${diffDisplay} ${sign} the official clock.`;
     const needlePos = 50 + (diff / 120) * 50;
     diffBar.style.left = Math.max(2, Math.min(98, needlePos)) + "%";
   } catch (diffErr) {
     console.warn("Diff calculation failed:", diffErr);
+    diffBadge.textContent = "—";
+    diffBadge.className = "diff-badge";
     diffText.textContent = "—";
   }
 }
