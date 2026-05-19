@@ -237,9 +237,7 @@
     </section>
 
     <footer class="footer" aria-label="Footer">
-      <p x-show="resultsVisible">Map by OpenStreetMap contributors &middot; Geocoding by Open-Meteo &middot; Solar
-        calculations based on Equation of Time</p>
-      <p class="footer-credit">Designed with &#10084; by Parag & AI</p>
+      <p class="footer-credit">Designed with &#10084; by <a href="https://iparag.in" target="_blank" rel="noopener noreferrer">Parag</a></p>
     </footer>
 
     <div class="story-overlay" :class="{ 'active': storyOpen }" @click.self="storyOpen = false" @keydown.escape.window="storyOpen = false" role="dialog" aria-modal="true" aria-label="The story behind Real Solar Time">
@@ -262,6 +260,7 @@
           <p>I&rsquo;m not saying AI replaced engineering judgment. I made decisions, reviewed output, asked for changes, steered the direction. But the distance between &ldquo;what if&rdquo; and &ldquo;here it is, deployed and working&rdquo; compressed from weeks to hours.</p>
           <p>That&rsquo;s the shift I think people are still underestimating. Not that AI writes code &mdash; that&rsquo;s the least interesting part. It&rsquo;s that the barrier between <em>having an idea</em> and <em>holding a working product</em> has dropped to nearly zero.</p>
           <p class="story-signoff">The question is no longer &ldquo;can I build this?&rdquo; It&rsquo;s &ldquo;is this idea worth building?&rdquo;</p>
+          <p class="story-credits">Map by OpenStreetMap contributors &middot; Geocoding by Open-Meteo &middot; Solar calculations based on Equation of Time</p>
         </div>
       </div>
     </div>

@@ -876,6 +876,16 @@ body {
   opacity: 0.7;
 }
 
+.footer-credit a {
+  color: var(--gold-dim);
+  text-decoration: none;
+  transition: color var(--transition-2);
+}
+
+.footer-credit a:hover {
+  color: var(--gold-light);
+}
+
 /* Header action buttons */
 .action-btn {
   display: inline-flex;
@@ -1067,6 +1077,14 @@ body {
   margin-top: var(--size-6);
   padding-top: var(--size-5);
   border-top: 1px solid var(--border-gold);
+}
+
+.story-credits {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: var(--size-4);
+  letter-spacing: 0.02em;
 }
 
 /* Tablet breakpoint */
