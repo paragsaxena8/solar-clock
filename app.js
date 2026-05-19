@@ -87,7 +87,7 @@ function solarClock() {
         if (value) {
           this.$nextTick(() => {
             this.initMap();
-            if (map) map.invalidateSize();
+            setTimeout(() => { if (map) map.invalidateSize(); }, 50);
             if (this.currentLat !== null) {
               map.setView([this.currentLat, this.currentLon], 6);
               this.updateMapMarker(this.currentLat, this.currentLon, this.locationName);

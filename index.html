@@ -148,93 +148,94 @@
 
     <div x-show="statusVisible" x-transition x-text="statusMsg" class="status"></div>
 
-    <section x-show="mapVisible" x-transition class="map-section">
-      <div class="map-header">
-        <div>
-          <h3>Pick a location on the map</h3>
-          <p class="map-hint">Click anywhere on the map to set your location</p>
+    <div class="workspace">
+      <section x-show="mapVisible" x-transition class="map-section">
+        <div class="map-header">
+          <div>
+            <h3>Pick a location on the map</h3>
+            <p class="map-hint">Click anywhere on the map to set your location</p>
+          </div>
+          <div class="map-style-switch">
+            <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'streets' }"
+              @click="setMapStyle('streets')">Streets</button>
+            <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'satellite' }"
+              @click="setMapStyle('satellite')">Satellite</button>
+            <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'terrain' }"
+              @click="setMapStyle('terrain')">Terrain</button>
+            <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'dark' }"
+              @click="setMapStyle('dark')">Dark</button>
+          </div>
         </div>
-        <div class="map-style-switch">
-          <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'streets' }"
-            @click="setMapStyle('streets')">Streets</button>
-          <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'satellite' }"
-            @click="setMapStyle('satellite')">Satellite</button>
-          <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'terrain' }"
-            @click="setMapStyle('terrain')">Terrain</button>
-          <button class="map-style-btn" :class="{ 'active': activeMapStyle === 'dark' }"
-            @click="setMapStyle('dark')">Dark</button>
-        </div>
-      </div>
-      <div id="map"></div>
-    </section>
+        <div id="map"></div>
+      </section>
 
-    <section x-show="resultsVisible" x-transition class="results">
-      <div class="location-heading">
-        <span x-text="locationCity" class="solar-city"></span><span x-text="locationCountry" class="solar-country"></span>
-      </div>
-      <div class="dashboard">
-        <div class="card card-solar">
-          <div class="solar-hero">
-            <div class="solar-hero-left">
-              <div class="solar-label-row">
-                <span class="solar-label-text">TRUE SOLAR TIME</span>
-              </div>
-              <div x-text="solarTime" class="time-big time-hero"></div>
-              <div x-text="solarLabel" class="card-sub"></div>
+      <section x-show="resultsVisible" x-transition class="results">
+        <div class="location-heading">
+          <span x-text="locationCity" class="solar-city"></span><span x-text="locationCountry" class="solar-country"></span>
+        </div>
+        <div class="dashboard" :class="mapVisible ? 'dashboard-compact' : 'dashboard-full'">
+
+          <!-- True Solar card -->
+          <div class="card card-solar">
+            <div class="card-label card-label-solar">TRUE SOLAR</div>
+            <div x-text="solarTime" class="time-big time-hero"></div>
+            <div x-text="solarLabel" class="card-sub"></div>
+            <svg class="sun-arc" viewBox="0 0 300 100" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="rgba(212,175,55,0.15)" />
+                  <stop offset="50%" stop-color="rgba(212,175,55,0.5)" />
+                  <stop offset="100%" stop-color="rgba(212,175,55,0.15)" />
+                </linearGradient>
+              </defs>
+              <path d="M 20 90 Q 150 -30 280 90" fill="none" stroke="url(#arcGrad)" stroke-width="2" />
+              <line x1="20" y1="90" x2="280" y2="90" stroke="rgba(138,134,117,0.2)" stroke-width="1" />
+              <text x="10" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif"
+                x-text="sunriseLabel"></text>
+              <text x="265" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif"
+                x-text="sunsetLabel"></text>
+              <circle :cx="sunDotX" :cy="sunDotY" r="8" fill="#d4af37" />
+            </svg>
+          </div>
+
+          <!-- Diff section -->
+          <div class="diff-section">
+            <h4>Solar vs Official Time Difference</h4>
+            <div class="diff-bar-wrap">
+              <div class="diff-bar" :style="{ left: diffBarLeft }"></div>
+            </div>
+            <div class="diff-info">
+              <span class="diff-text">Solar time is
+                <span x-text="diffBadge" class="diff-badge" :class="diffAhead ? 'diff-ahead' : 'diff-behind'"></span>
+                <span x-text="diffDirection"></span> the official clock.
+              </span>
             </div>
           </div>
-          <svg class="sun-arc" viewBox="0 0 300 100" preserveAspectRatio="xMidYMid meet">
-            <defs>
-              <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="rgba(212,175,55,0.15)" />
-                <stop offset="50%" stop-color="rgba(212,175,55,0.5)" />
-                <stop offset="100%" stop-color="rgba(212,175,55,0.15)" />
-              </linearGradient>
-            </defs>
-            <path d="M 20 90 Q 150 -30 280 90" fill="none" stroke="url(#arcGrad)" stroke-width="2" />
-            <line x1="20" y1="90" x2="280" y2="90" stroke="rgba(138,134,117,0.2)" stroke-width="1" />
-            <text x="10" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif"
-              x-text="sunriseLabel"></text>
-            <text x="265" y="88" fill="#8a8675" font-size="9" font-family="Inter, sans-serif"
-              x-text="sunsetLabel"></text>
-            <circle :cx="sunDotX" :cy="sunDotY" r="8" fill="#d4af37" />
-          </svg>
+
+          <!-- Cards column: Mean, Timezone, UTC -->
+          <div class="cards-column">
+            <div class="card card-mean">
+              <div class="card-label card-label-mean">MEAN</div>
+              <div x-text="meanTime" class="time-big time-card-value"></div>
+              <div class="card-sub">Based on longitude only</div>
+            </div>
+
+            <div class="card card-tz">
+              <div class="card-label card-label-tz">TIMEZONE</div>
+              <div x-text="officialTime" class="time-big time-card-value"></div>
+              <div class="card-sub"><span x-text="tzName"></span> <span x-show="tzOffset" class="tz-offset" x-text="tzOffset"></span></div>
+            </div>
+
+            <div class="card card-utc">
+              <div class="card-label card-label-utc">UTC</div>
+              <div x-text="utcTime" class="time-big time-card-value"></div>
+              <div class="card-sub">Universal reference</div>
+            </div>
+          </div>
+
         </div>
-
-        <div class="time-cards">
-          <div class="card card-mean">
-            <div class="card-label card-label-mean">MEAN</div>
-            <div x-text="meanTime" class="time-big time-card-value"></div>
-            <div class="card-sub">Based on longitude only</div>
-          </div>
-
-          <div class="card card-tz">
-            <div class="card-label card-label-tz">TIMEZONE</div>
-            <div x-text="officialTime" class="time-big time-card-value"></div>
-            <div class="card-sub"><span x-text="tzName"></span> <span x-show="tzOffset" class="tz-offset" x-text="tzOffset"></span></div>
-          </div>
-
-          <div class="card card-utc">
-            <div class="card-label card-label-utc">UTC</div>
-            <div x-text="utcTime" class="time-big time-card-value"></div>
-            <div class="card-sub">Universal reference</div>
-          </div>
-        </div>
-
-        <div class="diff-section">
-          <h4>Solar vs Official Time Difference</h4>
-          <div class="diff-bar-wrap">
-            <div class="diff-bar" :style="{ left: diffBarLeft }"></div>
-          </div>
-          <div class="diff-info">
-            <span class="diff-text">Solar time is
-              <span x-text="diffBadge" class="diff-badge" :class="diffAhead ? 'diff-ahead' : 'diff-behind'"></span>
-              <span x-text="diffDirection"></span> the official clock.
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <footer class="footer" aria-label="Footer">
       <p class="footer-credit">Designed with &#10084; by <a href="https://iparag.in" target="_blank" rel="noopener noreferrer">Parag</a></p>
