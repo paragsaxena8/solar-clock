@@ -86,7 +86,7 @@ body {
 
 .header {
   text-align: center;
-  margin-bottom: var(--size-10);
+  margin-bottom: var(--size-6);
   animation: fadeDown var(--transition-5) var(--ease-out-4);
 }
 

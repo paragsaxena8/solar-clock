@@ -5,16 +5,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Real Solar Time</title>
-  <meta name="description" content="Discover your true solar time — what time it actually is by the sun at any location on Earth. See how far official timezone time diverges from real solar time." />
-  <meta name="keywords" content="solar time, real solar time, equation of time, timezone difference, sun position, true time, mean solar time, longitude time" />
+  <meta name="description"
+    content="Discover your true solar time — what time it actually is by the sun at any location on Earth. See how far official timezone time diverges from real solar time." />
+  <meta name="keywords"
+    content="solar time, real solar time, equation of time, timezone difference, sun position, true time, mean solar time, longitude time" />
   <meta name="author" content="Parag Saxena" />
   <meta name="theme-color" content="#05060f" />
   <meta property="og:title" content="Real Solar Time" />
-  <meta property="og:description" content="True time based on the sun, not politics. See how far your clock diverges from real solar time at any location." />
+  <meta property="og:description"
+    content="True time based on the sun, not politics. See how far your clock diverges from real solar time at any location." />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="Real Solar Time" />
-  <meta name="twitter:description" content="True time based on the sun, not politics. See how far your clock diverges from real solar time." />
+  <meta name="twitter:description"
+    content="True time based on the sun, not politics. See how far your clock diverges from real solar time." />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/open-props" />
   <link rel="stylesheet" href="https://unpkg.com/open-props/normalize.min.css" />
@@ -51,16 +55,20 @@
           <h1>Real Solar Time</h1>
           <p class="tagline">True time based on the sun, not politics</p>
           <div class="header-actions">
-            <button class="action-btn story-trigger" @click="storyOpen = true" aria-label="Read the story behind this project">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            <button class="action-btn story-trigger" @click="storyOpen = true"
+              aria-label="Read the story behind this project">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
               </svg>
               The Story
             </button>
-            <a class="action-btn github-btn" href="https://github.com/paragsaxena8/solar-clock" target="_blank" rel="noopener noreferrer" aria-label="Star on GitHub">
+            <a class="action-btn github-btn" href="https://github.com/paragsaxena8/solar-clock" target="_blank"
+              rel="noopener noreferrer" aria-label="Star on GitHub">
               <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                <path
+                  d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
               </svg>
               Star
             </a>
@@ -76,8 +84,8 @@
           <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="#8a8675" stroke-width="2" stroke-linecap="round" />
         </svg>
         <input id="searchInput" x-model="searchQuery" @input.debounce.250ms="fetchSuggestions()"
-          @keydown="handleSearchKeydown($event)" type="search" placeholder="Search city or country..." autocomplete="off"
-          role="combobox" :aria-expanded="suggestionsVisible" aria-autocomplete="list"
+          @keydown="handleSearchKeydown($event)" type="search" placeholder="Search city or country..."
+          autocomplete="off" role="combobox" :aria-expanded="suggestionsVisible" aria-autocomplete="list"
           :aria-activedescendant="focusedIndex >= 0 ? 'suggestion-' + focusedIndex : ''" aria-owns="suggestions" />
         <div id="suggestions" class="suggestions" :class="{ 'active': suggestionsVisible }" role="listbox"
           aria-label="Location suggestions">
@@ -99,10 +107,14 @@
 
       <div class="quick-picks" x-show="!resultsVisible" x-transition>
         <div class="quick-picks-row">
-          <button class="quick-pick" @click="goToQuickPick('Kashgar', 39.47, 75.98, 'CN')" type="button" title="2hr off the clock — forced onto Beijing time">🇨🇳 Kashgar</button>
-          <button class="quick-pick" @click="goToQuickPick('A Coruña', 43.37, -8.40, 'ES')" type="button" title="Geographically west of London, legally on Paris time">🇪🇸 Galicia</button>
-          <button class="quick-pick" @click="goToQuickPick('Kolkata', 22.57, 88.36, 'IN')" type="button" title="Sun rises 80min earlier than Mumbai, same timezone">🇮🇳 Kolkata</button>
-          <button class="quick-pick" @click="goToQuickPick('Kathmandu', 27.72, 85.32, 'NP')" type="button" title="UTC+5:45 — the only country on a 45-minute offset">🇳🇵 Kathmandu</button>
+          <button class="quick-pick" @click="goToQuickPick('Kashgar', 39.47, 75.98, 'CN')" type="button"
+            title="2hr off the clock — forced onto Beijing time">🇨🇳 Kashgar</button>
+          <button class="quick-pick" @click="goToQuickPick('A Coruña', 43.37, -8.40, 'ES')" type="button"
+            title="Geographically west of London, legally on Paris time">🇪🇸 Galicia</button>
+          <button class="quick-pick" @click="goToQuickPick('Kolkata', 22.57, 88.36, 'IN')" type="button"
+            title="Sun rises 80min earlier than Mumbai, same timezone">🇮🇳 Kolkata</button>
+          <button class="quick-pick" @click="goToQuickPick('Kathmandu', 27.72, 85.32, 'NP')" type="button"
+            title="UTC+5:45 — the only country on a 45-minute offset">🇳🇵 Kathmandu</button>
         </div>
       </div>
 
@@ -171,7 +183,8 @@
 
       <section x-show="resultsVisible" x-transition class="results">
         <div class="location-heading">
-          <span x-text="locationCity" class="solar-city"></span><span x-text="locationCountry" class="solar-country"></span>
+          <span x-text="locationCity" class="solar-city"></span><span x-text="locationCountry"
+            class="solar-country"></span>
         </div>
         <div class="dashboard" :class="mapVisible ? 'dashboard-compact' : 'dashboard-full'">
 
@@ -223,7 +236,8 @@
             <div class="card card-tz">
               <div class="card-label card-label-tz">TIMEZONE</div>
               <div x-text="officialTime" class="time-big time-card-value"></div>
-              <div class="card-sub"><span x-text="tzName"></span> <span x-show="tzOffset" class="tz-offset" x-text="tzOffset"></span></div>
+              <div class="card-sub"><span x-text="tzName"></span> <span x-show="tzOffset" class="tz-offset"
+                  x-text="tzOffset"></span></div>
             </div>
 
             <div class="card card-utc">
@@ -238,30 +252,44 @@
     </div>
 
     <footer class="footer" aria-label="Footer">
-      <p class="footer-credit">Designed with &#10084; by <a href="https://iparag.in" target="_blank" rel="noopener noreferrer">Parag</a></p>
+      <p class="footer-credit">Designed with &#10084; by <a href="https://iparag.in" target="_blank"
+          rel="noopener noreferrer">Parag</a></p>
     </footer>
 
-    <div class="story-overlay" :class="{ 'active': storyOpen }" @click.self="storyOpen = false" @keydown.escape.window="storyOpen = false" role="dialog" aria-modal="true" aria-label="The story behind Real Solar Time">
+    <div class="story-overlay" :class="{ 'active': storyOpen }" @click.self="storyOpen = false"
+      @keydown.escape.window="storyOpen = false" role="dialog" aria-modal="true"
+      aria-label="The story behind Real Solar Time">
       <div class="story-modal">
         <button class="story-close" @click="storyOpen = false" aria-label="Close story">&times;</button>
         <div class="story-content">
           <h2>What time is it <em>really</em> where you are?</h2>
-          <p>India spans 2,900 km east to west &mdash; roughly the same as the US from coast to coast. Yet the entire country runs on a single timezone: IST. In Arunachal Pradesh, the sun rises over an hour earlier than in Gujarat. China is even more extreme &mdash; one timezone for a country that should span five.</p>
+          <p>India spans 2,900 km east to west &mdash; roughly the same as the US from coast to coast. Yet the entire
+            country runs on a single timezone: IST. In Arunachal Pradesh, the sun rises over an hour earlier than in
+            Gujarat. China is even more extreme &mdash; one timezone for a country that should span five.</p>
           <p>Your clock says 9 AM. The sun disagrees.</p>
           <p>That thought stuck with me. So I built something about it.</p>
           <h3>An idea, a conversation, a product</h3>
-          <p>I had a clear idea, but still just an idea. No wireframes, no design brief, no sprint planning. I sat down with AI and described what I wanted: a dark, celestial-themed interface, search-driven location input, a sun arc showing the sun&rsquo;s position, a gauge comparing solar vs official time.</p>
+          <p>I had a clear idea, but still just an idea. No wireframes, no design brief, no sprint planning. I sat down
+            with AI and described what I wanted: a dark, celestial-themed interface, search-driven location input, a sun
+            arc showing the sun&rsquo;s position, a gauge comparing solar vs official time.</p>
           <p>What happened next still catches me off guard:</p>
           <ul>
-            <li>Components built with design details I hadn&rsquo;t even specified &mdash; the star field background, the gold gradient on the sun arc, the instrument-gauge diff bar</li>
+            <li>Components built with design details I hadn&rsquo;t even specified &mdash; the star field background,
+              the gold gradient on the sun arc, the instrument-gauge diff bar</li>
             <li>Responsive layouts across breakpoints I didn&rsquo;t enumerate</li>
             <li>Accessibility &mdash; ARIA roles, keyboard navigation on the search dropdown</li>
           </ul>
           <p>All of this from a conversation. From a <em>thought</em>.</p>
-          <p>I&rsquo;m not saying AI replaced engineering judgment. I made decisions, reviewed output, asked for changes, steered the direction. But the distance between &ldquo;what if&rdquo; and &ldquo;here it is, deployed and working&rdquo; compressed from weeks to hours.</p>
-          <p>That&rsquo;s the shift I think people are still underestimating. Not that AI writes code &mdash; that&rsquo;s the least interesting part. It&rsquo;s that the barrier between <em>having an idea</em> and <em>holding a working product</em> has dropped to nearly zero.</p>
-          <p class="story-signoff">The question is no longer &ldquo;can I build this?&rdquo; It&rsquo;s &ldquo;is this idea worth building?&rdquo;</p>
-          <p class="story-credits">Map by OpenStreetMap contributors &middot; Geocoding by Open-Meteo &middot; Solar calculations based on Equation of Time</p>
+          <p>I&rsquo;m not saying AI replaced engineering judgment. I made decisions, reviewed output, asked for
+            changes, steered the direction. But the distance between &ldquo;what if&rdquo; and &ldquo;here it is,
+            deployed and working&rdquo; compressed from weeks to hours.</p>
+          <p>That&rsquo;s the shift I think people are still underestimating. Not that AI writes code &mdash;
+            that&rsquo;s the least interesting part. It&rsquo;s that the barrier between <em>having an idea</em> and
+            <em>holding a working product</em> has dropped to nearly zero.</p>
+          <p class="story-signoff">The question is no longer &ldquo;can I build this?&rdquo; It&rsquo;s &ldquo;is this
+            idea worth building?&rdquo;</p>
+          <p class="story-credits">Map by OpenStreetMap contributors &middot; Geocoding by Open-Meteo &middot; Solar
+            calculations based on Equation of Time</p>
         </div>
       </div>
     </div>
